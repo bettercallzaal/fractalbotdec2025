@@ -36,10 +36,11 @@ The ZAO Fractal Voting System streamlines group consensus-building with these co
 - **Persistent Archives**: Completed groups remain for future reference
 
 ### **🛠️ Admin Management**
-- **Force End Groups**: `/admin_end_fractal` for stuck processes
-- **List Active Groups**: `/admin_list_fractals` shows all running fractals
-- **Cleanup Tools**: `/admin_cleanup` removes old/broken groups
-- **Full Oversight**: Admins can manage any fractal group
+- **Complete Process Control**: Force round progression, pause/resume, restart fractals
+- **Dynamic Member Management**: Add/remove members, change facilitators mid-fractal
+- **Advanced Monitoring**: Detailed stats, server analytics, data export
+- **Comprehensive Oversight**: 12 powerful admin commands for total control
+- **Robust Error Handling**: All commands include validation and clear feedback
 
 ## Installation
 
@@ -80,9 +81,31 @@ The ZAO Fractal Voting System streamlines group consensus-building with these co
 - **`/endgroup`** - End an active fractal group (facilitator only)
 
 ### **Admin Commands** (Requires Administrator permissions)
+
+#### **Basic Management**
 - **`/admin_end_fractal [thread_id]`** - Force end any fractal group
 - **`/admin_list_fractals`** - List all active fractal groups with details
 - **`/admin_cleanup`** - Remove old/stuck fractal groups
+
+#### **Force Round Progression**
+- **`/admin_force_round <thread_id>`** - Skip current voting and move to next level
+- **`/admin_reset_votes <thread_id>`** - Clear all votes in current round
+- **`/admin_declare_winner <thread_id> <user>`** - Manually declare a round winner
+
+#### **Member Management**
+- **`/admin_add_member <thread_id> <user>`** - Add someone to an active fractal
+- **`/admin_remove_member <thread_id> <user>`** - Remove someone from active fractal
+- **`/admin_change_facilitator <thread_id> <user>`** - Transfer facilitator role
+
+#### **Group Control**
+- **`/admin_pause_fractal <thread_id>`** - Temporarily pause voting
+- **`/admin_resume_fractal <thread_id>`** - Resume paused fractal
+- **`/admin_restart_fractal <thread_id>`** - Restart from beginning with same members
+
+#### **Advanced Monitoring**
+- **`/admin_fractal_stats <thread_id>`** - Detailed stats for specific group
+- **`/admin_server_stats`** - Overall server fractal statistics
+- **`/admin_export_data [thread_id]`** - Export fractal data as JSON file
 
 ### **Simplified Voting Process**
 
@@ -129,8 +152,10 @@ fractalbotnov2025/
 - Fixed "Unknown Interaction" errors with proper View/Modal patterns
 - Added tie-breaking logic with random selection
 - Implemented dual results posting (thread + general channel)
-- Added comprehensive admin management commands
+- Added 12 comprehensive admin management commands
 - Flattened project structure for better organization
+- Advanced monitoring with detailed statistics and data export
+- Pause/resume functionality for better process control
 
 ### **📈 Reliability Improvements**
 - Better error handling for edge cases
@@ -157,17 +182,41 @@ DEBUG=FALSE                          # Optional: Enable debug logging
 - Read Message History
 - Add Reactions
 
+## Admin Guide
+
+### **Getting Thread IDs**
+Most admin commands require a `thread_id` parameter:
+1. **Right-click** on the fractal thread name
+2. **Select "Copy ID"** (requires Developer Mode enabled)
+3. **Use the ID** in admin commands
+
+### **Common Admin Scenarios**
+- **Stuck voting**: Use `/admin_force_round` to advance to next level
+- **Member left mid-fractal**: Use `/admin_remove_member` to continue
+- **Need to add spectator**: Use `/admin_add_member` to include them
+- **Facilitator disconnected**: Use `/admin_change_facilitator` to transfer role
+- **Process needs pause**: Use `/admin_pause_fractal` and `/admin_resume_fractal`
+- **Start over**: Use `/admin_restart_fractal` to begin fresh
+
+### **Monitoring & Analytics**
+- **Individual fractal stats**: `/admin_fractal_stats` shows detailed metrics
+- **Server overview**: `/admin_server_stats` displays server-wide statistics
+- **Data analysis**: `/admin_export_data` creates JSON export for external tools
+
 ## Troubleshooting
 
 ### **Common Issues**
 - **"Unknown Interaction" errors**: Fixed in v3 - update to latest version
 - **Missing permissions**: Ensure bot has thread management permissions
-- **Stuck fractals**: Use `/admin_cleanup` to remove broken groups
+- **Stuck fractals**: Use `/admin_force_round` or `/admin_cleanup`
 - **No general channel found**: Bot will use first available text channel as fallback
+- **Paused fractals**: Check with `/admin_fractal_stats` and resume if needed
 
 ### **Support**
 - Check console logs for detailed error information
-- Use `/admin_list_fractals` to see active groups
+- Use `/admin_list_fractals` to see all active groups
+- Use `/admin_server_stats` for server-wide overview
+- Export data with `/admin_export_data` for analysis
 - Restart bot if experiencing persistent issues
 
 ## Contributing
@@ -188,3 +237,5 @@ This project is licensed under the terms of the MIT License - see the LICENSE fi
 ---
 
 **Version 3.0** - Simplified, streamlined, and more reliable than ever! 🚀
+
+**Admin Suite** - Complete administrative control with 12 powerful commands! ⚡
