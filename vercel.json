@@ -1,6 +1,18 @@
 {
-  "buildCommand": "cd web && npm run build",
-  "devCommand": "cd web && npm run dev",
-  "installCommand": "cd web && npm install",
-  "outputDirectory": "web/.next"
+  "version": 2,
+  "builds": [
+    {
+      "src": "web/package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/web/$1"
+    }
+  ]
 }
