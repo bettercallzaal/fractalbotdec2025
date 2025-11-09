@@ -1,6 +1,6 @@
 # ZAO Fractal Voting System
 
-A simplified Discord bot for structured group decision-making through fractal voting. Create transparent, democratic voting processes with automatic group management and real-time results.
+A comprehensive Discord bot and web application for structured group decision-making through fractal voting. Create transparent, democratic voting processes with automatic group management, real-time results, and a beautiful web dashboard for tracking participation and progress.
 
 ## Overview
 
@@ -12,6 +12,8 @@ The ZAO Fractal Voting System streamlines group consensus-building with these co
 - **Public & Transparent**: All votes and results visible to everyone
 - **Tie-Breaking**: Automatic random selection for tied votes
 - **Multi-Channel Results**: Results posted to both fractal thread and general channel
+- **Web Dashboard**: Beautiful Next.js web app for tracking participation and progress
+- **Discord OAuth**: Seamless sign-in with Discord for personalized experience
 - **Admin Controls**: Full management tools for moderators
 
 ## Key Features
@@ -35,6 +37,13 @@ The ZAO Fractal Voting System streamlines group consensus-building with these co
 - **Dual Distribution**: Results in fractal thread + summary in general channel
 - **Persistent Archives**: Completed groups remain for future reference
 
+### **🌐 Web Dashboard**
+- **Discord OAuth Integration**: Sign in with your Discord account
+- **Personal Statistics**: Track your fractal participation and wins
+- **Real-Time Updates**: Live sync with Discord bot activities
+- **Beautiful UI**: Modern, responsive design with Tailwind CSS
+- **Database Integration**: PostgreSQL with Neon for reliable data storage
+
 ### **🛠️ Admin Management**
 - **Complete Process Control**: Force round progression, pause/resume, restart fractals
 - **Dynamic Member Management**: Add/remove members, change facilitators mid-fractal
@@ -44,10 +53,12 @@ The ZAO Fractal Voting System streamlines group consensus-building with these co
 
 ## Installation
 
+### **Discord Bot Setup**
+
 1. **Clone this repository:**
    ```bash
-   git clone https://github.com/bettercallzaal/fractalbotV3June2025.git
-   cd fractalbotV3June2025
+   git clone https://github.com/bettercallzaal/fractalbotnov2025.git
+   cd fractalbotnov2025
    ```
 
 2. **Install dependencies:**
@@ -57,9 +68,6 @@ The ZAO Fractal Voting System streamlines group consensus-building with these co
 
 3. **Set up environment variables:**
    ```bash
-   # Copy the template
-   cp config/.env.template .env
-   
    # Edit .env and add your Discord bot token
    DISCORD_TOKEN=your_bot_token_here
    DEBUG=FALSE
@@ -72,6 +80,47 @@ The ZAO Fractal Voting System streamlines group consensus-building with these co
 
 5. **Invite to your server:**
    Use the invite link shown in the console output with proper permissions.
+
+### **Web Dashboard Setup**
+
+1. **Navigate to web directory:**
+   ```bash
+   cd web
+   ```
+
+2. **Install Node.js dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Set up environment variables:**
+   ```bash
+   # Copy example and edit with your values
+   cp .env.example .env.local
+   
+   # Required variables:
+   DISCORD_CLIENT_ID=your_discord_app_client_id
+   DISCORD_CLIENT_SECRET=your_discord_app_client_secret
+   NEXTAUTH_URL=http://localhost:3000
+   NEXTAUTH_SECRET=your_nextauth_secret_key
+   DATABASE_URL=your_postgresql_connection_string
+   WEBHOOK_SECRET=your_webhook_secret
+   ```
+
+4. **Run development server:**
+   ```bash
+   npm run dev
+   ```
+
+5. **Visit the dashboard:**
+   Open [http://localhost:3000](http://localhost:3000) in your browser
+
+### **Production Deployment**
+
+The web dashboard is deployed on Vercel with Neon PostgreSQL:
+- **Live URL**: [https://fractalbotnov2025.vercel.app](https://fractalbotnov2025.vercel.app)
+- **Database**: Neon PostgreSQL with automatic scaling
+- **Environment**: All variables configured via Vercel dashboard
 
 ## Usage
 
@@ -123,8 +172,8 @@ The ZAO Fractal Voting System streamlines group consensus-building with these co
 
 ```
 fractalbotnov2025/
-├── main.py                  # Bot entry point and startup
-├── .env                     # Environment variables (tokens)
+├── main.py                  # Discord bot entry point and startup
+├── .env                     # Environment variables (tokens, database)
 ├── requirements.txt         # Python dependencies
 ├── config/
 │   ├── config.py           # Configuration parameters
@@ -136,39 +185,84 @@ fractalbotnov2025/
 │       ├── cog.py          # Slash commands and admin tools
 │       ├── group.py        # FractalGroup core voting logic
 │       └── views.py        # UI components and member confirmation
-└── utils/
-    └── logging.py          # Logging configuration
+├── utils/
+│   └── logging.py          # Logging configuration
+├── web/                     # Next.js Web Dashboard
+│   ├── pages/              # Next.js pages and API routes
+│   │   ├── index.tsx       # Main dashboard page
+│   │   ├── _app.tsx        # App wrapper with NextAuth
+│   │   └── api/            # API endpoints
+│   │       ├── auth/       # NextAuth Discord OAuth
+│   │       ├── fractals/   # Fractal data endpoints
+│   │       ├── health.ts   # Health check endpoint
+│   │       └── webhook.ts  # Discord bot webhook integration
+│   ├── utils/              # Database and utility functions
+│   │   ├── database.ts     # Neon PostgreSQL connection
+│   │   └── schema.ts       # Database schema definitions
+│   ├── types/              # TypeScript type definitions
+│   ├── public/             # Static assets
+│   ├── package.json        # Node.js dependencies
+│   └── .env.example        # Web app environment template
+└── vercel.json             # Vercel deployment configuration
 ```
 
-## Recent Improvements (v3)
+## Recent Improvements (v4 - November 2025)
 
-### **🎯 Simplified User Flow**
+### **🌐 Web Dashboard Integration**
+- **Next.js Web Application**: Beautiful, responsive dashboard for tracking participation
+- **Discord OAuth**: Seamless sign-in with Discord accounts
+- **Real-Time Sync**: Live integration between Discord bot and web dashboard
+- **PostgreSQL Database**: Neon-hosted database for reliable data persistence
+- **Vercel Deployment**: Production-ready hosting with automatic scaling
+
+### **🎯 Enhanced User Experience**
+- **Personal Statistics**: Track individual fractal participation and wins
+- **Modern UI**: Tailwind CSS with beautiful, accessible design
+- **Mobile Responsive**: Works perfectly on all device sizes
+- **TypeScript**: Full type safety throughout the web application
+
+### **🔧 Technical Architecture**
+- **Database Schema**: Comprehensive tables for users, fractals, participants, voting rounds, and votes
+- **API Integration**: RESTful endpoints for Discord bot webhook integration
+- **Environment Management**: Secure configuration via Vercel and Neon integration
+- **Migration Scripts**: Automated database setup and maintenance
+
+### **📊 Previous Improvements (v3)**
 - Removed complex modal forms - everything is now button-based
 - Auto-generated group names eliminate user input requirements
 - One-click member confirmation with modification options
-- Public threads for full transparency (was private before)
-
-### **🔧 Technical Enhancements**
+- Public threads for full transparency
 - Fixed "Unknown Interaction" errors with proper View/Modal patterns
 - Added tie-breaking logic with random selection
 - Implemented dual results posting (thread + general channel)
 - Added 15 comprehensive admin management commands
-- Flattened project structure for better organization
 - Advanced monitoring with detailed statistics and data export
-- Pause/resume functionality for better process control
-
-### **📈 Reliability Improvements**
-- Better error handling for edge cases
-- Automatic cleanup of stuck/archived groups
-- Improved logging throughout the system
-- Persistent group tracking across bot restarts
 
 ## Configuration
 
 ### **Environment Variables**
+
+**Discord Bot (.env):**
 ```bash
 DISCORD_TOKEN=your_bot_token_here    # Required: Your Discord bot token
 DEBUG=FALSE                          # Optional: Enable debug logging
+```
+
+**Web Dashboard (web/.env.local):**
+```bash
+# Discord OAuth
+DISCORD_CLIENT_ID=your_discord_app_client_id
+DISCORD_CLIENT_SECRET=your_discord_app_client_secret
+
+# NextAuth Configuration
+NEXTAUTH_URL=http://localhost:3000  # or your production URL
+NEXTAUTH_SECRET=your_nextauth_secret_key
+
+# Database
+DATABASE_URL=postgresql://username:password@host:5432/database
+
+# Webhook Security
+WEBHOOK_SECRET=your_webhook_secret_for_discord_bot
 ```
 
 ### **Bot Permissions Required**
@@ -236,6 +330,8 @@ This project is licensed under the terms of the MIT License - see the LICENSE fi
 
 ---
 
-**Version 3.0** - Simplified, streamlined, and more reliable than ever! 🚀
+**Version 4.0 (November 2025)** - Now with beautiful web dashboard and Discord OAuth integration! 🌐
 
-**Admin Suite** - Complete administrative control with 15 powerful commands! ⚡
+**Full-Stack Solution** - Discord bot + Next.js web app + PostgreSQL database! 🚀
+
+**Live Demo**: [https://fractalbotnov2025.vercel.app](https://fractalbotnov2025.vercel.app) ⚡
