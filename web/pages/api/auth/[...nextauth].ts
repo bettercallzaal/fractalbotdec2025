@@ -4,6 +4,13 @@ import { db } from '../../../utils/database';
 import { users } from '../../../utils/schema';
 import { eq } from 'drizzle-orm';
 
+interface DiscordProfile {
+  id: string;
+  username: string;
+  global_name?: string;
+  avatar?: string;
+}
+
 export default NextAuth({
   providers: [
     DiscordProvider({
@@ -20,32 +27,34 @@ export default NextAuth({
     async signIn({ user, account, profile }) {
       if (account?.provider === 'discord' && profile) {
         try {
+          const discordProfile = profile as DiscordProfile;
+          
           // Check if user exists in database
           const existingUser = await db
             .select()
             .from(users)
-            .where(eq(users.discordId, profile.id as string))
+            .where(eq(users.discordId, discordProfile.id))
             .limit(1);
 
           if (existingUser.length === 0) {
             // Create new user
             await db.insert(users).values({
-              discordId: profile.id as string,
-              username: profile.username as string,
-              displayName: (profile.global_name || profile.username) as string,
-              avatarUrl: `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`,
+              discordId: discordProfile.id,
+              username: discordProfile.username,
+              displayName: discordProfile.global_name || discordProfile.username,
+              avatarUrl: `https://cdn.discordapp.com/avatars/${discordProfile.id}/${discordProfile.avatar}.png`,
             });
           } else {
             // Update existing user info
             await db
               .update(users)
               .set({
-                username: profile.username as string,
-                displayName: (profile.global_name || profile.username) as string,
-                avatarUrl: `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`,
+                username: discordProfile.username,
+                displayName: discordProfile.global_name || discordProfile.username,
+                avatarUrl: `https://cdn.discordapp.com/avatars/${discordProfile.id}/${discordProfile.avatar}.png`,
                 updatedAt: new Date(),
               })
-              .where(eq(users.discordId, profile.id as string));
+              .where(eq(users.discordId, discordProfile.id));
           }
         } catch (error) {
           console.error('Error handling user sign in:', error);
@@ -75,7 +84,8 @@ export default NextAuth({
     },
     async jwt({ token, account, profile }) {
       if (account && profile) {
-        token.discordId = profile.id;
+        const discordProfile = profile as DiscordProfile;
+        token.discordId = discordProfile.id;
       }
       return token;
     },
