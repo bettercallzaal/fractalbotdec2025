@@ -17,6 +17,9 @@ class FractalCog(BaseCog):
         self.logger = logging.getLogger('bot')
         self.active_groups = {}  # Dict mapping thread_id to FractalGroup
         self.daily_counters = {}  # Dict mapping guild_id -> {date: counter}
+        
+        # Create admin command group
+        self.admin_group = app_commands.Group(name="admin", description="Admin commands for fractal management")
     
     def _get_next_group_name(self, guild_id: int) -> str:
         """Generate auto-incremented group name for the day"""
@@ -116,7 +119,12 @@ class FractalCog(BaseCog):
     )
     async def status(self, interaction: discord.Interaction):
         """Show the status of an active fractal group"""
-        await interaction.response.defer(ephemeral=True)
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except discord.NotFound:
+            return
+        except discord.InteractionResponded:
+            pass
         
         # Check if in a fractal thread
         if not isinstance(interaction.channel, discord.Thread):
@@ -126,7 +134,9 @@ class FractalCog(BaseCog):
         # Check if this is an active fractal group
         group = self.active_groups.get(interaction.channel.id)
         if not group:
-            await interaction.followup.send("❌ This thread is not an active fractal group.", ephemeral=True)
+            # Debug: show what threads we have
+            active_thread_ids = list(self.active_groups.keys())
+            await interaction.followup.send(f"❌ This thread is not an active fractal group.\nActive threads: {active_thread_ids}\nCurrent thread: {interaction.channel.id}", ephemeral=True)
             return
         
         # Build status message
@@ -154,11 +164,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the thread to end (optional)")
     async def admin_end_fractal(self, interaction: discord.Interaction, thread_id: str = None):
         """Admin command to force end fractals"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         if thread_id:
             # End specific fractal
@@ -191,11 +201,11 @@ class FractalCog(BaseCog):
     )
     async def admin_list_fractals(self, interaction: discord.Interaction):
         """Admin command to list all active fractals"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         if not self.active_groups:
             await interaction.followup.send("✅ No active fractal groups.", ephemeral=True)
@@ -219,11 +229,11 @@ class FractalCog(BaseCog):
     )
     async def admin_cleanup(self, interaction: discord.Interaction):
         """Admin command to cleanup stuck fractals"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         cleaned_count = 0
         to_remove = []
@@ -256,11 +266,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread")
     async def admin_force_round(self, interaction: discord.Interaction, thread_id: str):
         """Admin command to force move to next round"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             thread_id_int = int(thread_id)
@@ -301,11 +311,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread")
     async def admin_reset_votes(self, interaction: discord.Interaction, thread_id: str):
         """Admin command to reset votes in current round"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             thread_id_int = int(thread_id)
@@ -333,11 +343,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread", user="User to declare as winner")
     async def admin_declare_winner(self, interaction: discord.Interaction, thread_id: str, user: discord.Member):
         """Admin command to manually declare a winner"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             thread_id_int = int(thread_id)
@@ -369,11 +379,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread", user="User to add to the fractal")
     async def admin_add_member(self, interaction: discord.Interaction, thread_id: str, user: discord.Member):
         """Admin command to add member to active fractal"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             thread_id_int = int(thread_id)
@@ -413,11 +423,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread", user="User to remove from the fractal")
     async def admin_remove_member(self, interaction: discord.Interaction, thread_id: str, user: discord.Member):
         """Admin command to remove member from active fractal"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             thread_id_int = int(thread_id)
@@ -457,11 +467,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread", user="New facilitator")
     async def admin_change_facilitator(self, interaction: discord.Interaction, thread_id: str, user: discord.Member):
         """Admin command to change facilitator"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             thread_id_int = int(thread_id)
@@ -495,11 +505,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread")
     async def admin_pause_fractal(self, interaction: discord.Interaction, thread_id: str):
         """Admin command to pause fractal voting"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             thread_id_int = int(thread_id)
@@ -535,11 +545,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread")
     async def admin_resume_fractal(self, interaction: discord.Interaction, thread_id: str):
         """Admin command to resume paused fractal"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             thread_id_int = int(thread_id)
@@ -571,11 +581,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread")
     async def admin_restart_fractal(self, interaction: discord.Interaction, thread_id: str):
         """Admin command to restart fractal from beginning"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             thread_id_int = int(thread_id)
@@ -613,11 +623,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread")
     async def admin_fractal_stats(self, interaction: discord.Interaction, thread_id: str):
         """Admin command to get detailed fractal stats"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             thread_id_int = int(thread_id)
@@ -676,11 +686,11 @@ class FractalCog(BaseCog):
     )
     async def admin_server_stats(self, interaction: discord.Interaction):
         """Admin command to get server-wide fractal stats"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             guild_id = interaction.guild.id
@@ -725,11 +735,11 @@ class FractalCog(BaseCog):
     @app_commands.describe(thread_id="ID of the fractal thread (optional - exports all if not specified)")
     async def admin_export_data(self, interaction: discord.Interaction, thread_id: str = None):
         """Admin command to export fractal data"""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
-            return
-        
         await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            return
         
         try:
             import json

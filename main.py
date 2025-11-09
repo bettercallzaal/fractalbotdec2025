@@ -63,17 +63,22 @@ async def on_ready():
     )
     logger.info(f"Invite link: {invite_link}")
     
-    # Sync commands
-    logger.info("Syncing commands...")
-    for guild in bot.guilds:
-        logger.info(f"Syncing commands to guild: {guild.name}")
-        await bot.tree.sync(guild=discord.Object(id=guild.id))
-        logger.info(f"Commands synced to guild {guild.id}")
+    # Debug: List all commands before syncing
+    logger.info(f"Total commands in tree: {len(bot.tree.get_commands())}")
+    for cmd in bot.tree.get_commands():
+        logger.info(f"Command: /{cmd.name} - {cmd.description}")
     
-    # Sync globally
-    logger.info("Syncing commands globally")
-    await bot.tree.sync()
-    logger.info("Commands synced globally")
+    # Clear any existing guild commands first
+    for guild in bot.guilds:
+        logger.info(f"Clearing existing commands for guild: {guild.name}")
+        bot.tree.clear_commands(guild=discord.Object(id=guild.id))
+    
+    # Copy global commands to guild for faster sync
+    for guild in bot.guilds:
+        logger.info(f"Copying commands to guild: {guild.name}")
+        bot.tree.copy_global_to(guild=discord.Object(id=guild.id))
+        synced = await bot.tree.sync(guild=discord.Object(id=guild.id))
+        logger.info(f"Commands synced to guild {guild.id}: {len(synced)} commands")
 
 # Run bot
 async def main():
