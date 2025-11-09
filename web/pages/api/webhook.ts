@@ -176,8 +176,8 @@ async function handleFractalComplete(threadId: string, data: any) {
       await db
         .update(users)
         .set({
-          totalFractals: user[0].totalFractals + 1,
-          totalWins: isWinner ? user[0].totalWins + 1 : user[0].totalWins,
+          totalFractals: (user[0].totalFractals ?? 0) + 1,
+          totalWins: isWinner ? (user[0].totalWins ?? 0) + 1 : (user[0].totalWins ?? 0),
         })
         .where(eq(users.id, user[0].id));
     }
