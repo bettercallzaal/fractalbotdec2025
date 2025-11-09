@@ -15,8 +15,7 @@ import {
   Play, 
   Pause, 
   Clock,
-  ExternalLink,
-  Wallet
+  ExternalLink
 } from 'lucide-react';
 
 interface Fractal {
@@ -166,10 +165,7 @@ export default function Dashboard() {
               <span className="text-sm font-medium">{session.user?.name}</span>
             </div>
             
-            <Button variant="outline" size="sm">
-              <Wallet className="h-4 w-4 mr-2" />
-              Connect Wallet
-            </Button>
+            {/* Wallet integration coming soon */}
             
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               Sign Out
