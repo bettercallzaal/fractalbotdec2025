@@ -24,15 +24,15 @@ export default NextAuth({
           const existingUser = await db
             .select()
             .from(users)
-            .where(eq(users.discordId, profile.id as string))
+            .where(eq(users.discordId, String(profile.id)))
             .limit(1);
 
           if (existingUser.length === 0) {
             // Create new user
             await db.insert(users).values({
-              discordId: profile.id as string,
-              username: profile.username as string,
-              displayName: profile.global_name as string || profile.username as string,
+              discordId: String(profile.id),
+              username: String(profile.username),
+              displayName: String(profile.global_name || profile.username),
               avatarUrl: `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`,
             });
           } else {
@@ -40,12 +40,12 @@ export default NextAuth({
             await db
               .update(users)
               .set({
-                username: profile.username as string,
-                displayName: profile.global_name as string || profile.username as string,
+                username: String(profile.username),
+                displayName: String(profile.global_name || profile.username),
                 avatarUrl: `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`,
                 updatedAt: new Date(),
               })
-              .where(eq(users.discordId, profile.id as string));
+              .where(eq(users.discordId, String(profile.id)));
           }
         } catch (error) {
           console.error('Error handling user sign in:', error);
@@ -60,7 +60,7 @@ export default NextAuth({
         const userData = await db
           .select()
           .from(users)
-          .where(eq(users.discordId, token.sub))
+          .where(eq(users.discordId, String(token.sub)))
           .limit(1);
 
         if (userData.length > 0) {
