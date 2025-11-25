@@ -92,8 +92,13 @@ class MemberConfirmationView(discord.ui.View):
         # Generate group name
         group_name = self.cog._get_next_group_name(interaction.guild.id)
         
+        # Get the parent channel (in case we're in a thread)
+        channel = interaction.channel
+        if isinstance(channel, discord.Thread):
+            channel = channel.parent
+        
         # Create public thread
-        thread = await interaction.channel.create_thread(
+        thread = await channel.create_thread(
             name=group_name,
             type=discord.ChannelType.public_thread,
             reason="ZAO Fractal Group"
