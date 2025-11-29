@@ -81,12 +81,16 @@ class FractalGroup:
     
     async def start_next_speaker(self):
         """Start the next speaker in the queue"""
+        self.logger.info(f"start_next_speaker called, speaking_queue exists: {self.speaking_queue is not None}")
         if not self.speaking_queue:
+            self.logger.warning("No speaking queue available")
             return
         
         next_speaker = self.speaking_queue.next_speaker()
+        self.logger.info(f"Next speaker from queue: {next_speaker.display_name if next_speaker else 'None'}")
         if not next_speaker:
             # All speakers done, transition to voting
+            self.logger.info("All speakers done, transitioning to voting")
             await self.transition_to_voting()
             return
         
@@ -94,6 +98,11 @@ class FractalGroup:
         await self.update_voice_control_display()
         
         # Start timer for this speaker
+        self.logger.info(f"Starting timer for {next_speaker.display_name} with {self.speaking_time} seconds")
+        
+        # Send immediate confirmation that timer started
+        await self.thread.send(f"🎙️ **{next_speaker.mention} is now speaking** ({self.speaking_time//60} minutes)")
+        
         await self.voice_timer.start_timer(
             next_speaker,
             self.thread,
