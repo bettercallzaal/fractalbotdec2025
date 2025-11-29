@@ -87,7 +87,12 @@ class MemberConfirmationView(discord.ui.View):
             await interaction.response.send_message("Only the facilitator can start the fractal.", ephemeral=True)
             return
         
-        await interaction.response.defer()
+        # For button interactions, we need to defer differently
+        try:
+            await interaction.response.defer()
+        except discord.InteractionResponded:
+            # Interaction already responded to, continue
+            pass
         
         # Generate group name
         group_name = self.cog._get_next_group_name(interaction.guild.id)
@@ -315,7 +320,12 @@ class VoiceMemberConfirmationView(MemberConfirmationView):
             await interaction.response.send_message("Only the facilitator can start the fractal.", ephemeral=True)
             return
         
-        await interaction.response.defer()
+        # For button interactions, we need to defer differently
+        try:
+            await interaction.response.defer()
+        except discord.InteractionResponded:
+            # Interaction already responded to, continue
+            pass
         
         # Use existing thread creation logic
         group_name = self.cog._get_next_group_name(interaction.guild.id)
