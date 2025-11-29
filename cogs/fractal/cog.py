@@ -5,7 +5,7 @@ import logging
 import random
 from datetime import datetime
 from ..base import BaseCog
-from .views import MemberConfirmationView
+from .views import MemberConfirmationView, VoiceMemberConfirmationView
 from .group import FractalGroup
 
 class FractalCog(BaseCog):
@@ -80,6 +80,100 @@ class FractalCog(BaseCog):
             # If followup fails, send to channel
             await interaction.channel.send(
                 f"{interaction.user.mention} **Start fractal with:** {member_mentions}?",
+                view=view
+            )
+    
+    @app_commands.command(
+        name="zaofractal_voice",
+        description="Create a ZAO fractal with voice speaking rounds before voting"
+    )
+    @app_commands.describe(
+        speaking_time="Minutes each person gets to speak (default: 2)",
+        voice_channel="Voice channel to use (default: your current channel)"
+    )
+    async def zaofractal_voice(
+        self, 
+        interaction: discord.Interaction, 
+        speaking_time: int = 2,
+        voice_channel: discord.VoiceChannel = None
+    ):
+        """Create a ZAO fractal with voice speaking phase before voting"""
+        # Check if interaction has already been responded to
+        if interaction.response.is_done():
+            return
+        
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except discord.NotFound:
+            return
+        except discord.InteractionResponded:
+            pass
+        
+        # Validate speaking time
+        if speaking_time < 1 or speaking_time > 10:
+            await interaction.followup.send(
+                "❌ Speaking time must be between 1-10 minutes!", 
+                ephemeral=True
+            )
+            return
+        
+        # Get voice channel
+        if not voice_channel:
+            if interaction.user.voice and interaction.user.voice.channel:
+                voice_channel = interaction.user.voice.channel
+            else:
+                await interaction.followup.send(
+                    "❌ You must be in a voice channel or specify one!", 
+                    ephemeral=True
+                )
+                return
+        
+        # Get members from voice channel
+        members = [member for member in voice_channel.members if not member.bot]
+        
+        if len(members) < 2:
+            await interaction.followup.send(
+                f"❌ Need at least 2 people in {voice_channel.mention}!", 
+                ephemeral=True
+            )
+            return
+        
+        if len(members) > 6:
+            await interaction.followup.send(
+                f"❌ Too many people in {voice_channel.mention}! Maximum is 6 for fractals.", 
+                ephemeral=True
+            )
+            return
+        
+        # Create voice confirmation view
+        view = VoiceMemberConfirmationView(
+            cog=self, 
+            members=members, 
+            facilitator=interaction.user,
+            voice_channel=voice_channel,
+            speaking_time=speaking_time * 60  # Convert to seconds
+        )
+        
+        member_list = "\n".join([f"• {member.display_name}" for member in members])
+        try:
+            await interaction.followup.send(
+                f"🎙️ **Voice Fractal Setup**\n"
+                f"**Voice Channel:** {voice_channel.mention}\n"
+                f"**Speaking Time:** {speaking_time} minutes each\n"
+                f"**Members ({len(members)}):**\n{member_list}\n\n"
+                f"**Process:** Speaking rounds → Thread voting → Results",
+                view=view,
+                ephemeral=True
+            )
+        except:
+            # Fallback to channel message
+            await interaction.channel.send(
+                f"{interaction.user.mention}\n"
+                f"🎙️ **Voice Fractal Setup**\n"
+                f"**Voice Channel:** {voice_channel.mention}\n"
+                f"**Speaking Time:** {speaking_time} minutes each\n"
+                f"**Members ({len(members)}):**\n{member_list}\n\n"
+                f"**Process:** Speaking rounds → Thread voting → Results",
                 view=view
             )
     

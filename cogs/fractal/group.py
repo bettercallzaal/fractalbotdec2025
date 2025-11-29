@@ -3,12 +3,13 @@ import logging
 import asyncio
 import random
 from typing import Optional, List, Dict
-from ...utils.web_integration import web_integration
+from utils.web_integration import web_integration
+from .speaking_queue import SpeakingQueue, VoiceTimer
 
 class FractalGroup:
     """Core class for managing a fractal voting group"""
     
-    def __init__(self, thread: discord.Thread, members: List[discord.Member], facilitator: discord.Member, cog):
+    def __init__(self, thread: discord.Thread, members: List[discord.Member], facilitator: discord.Member, cog, voice_channel=None, speaking_time=120):
         """Initialize a new fractal group"""
         self.thread = thread
         self.facilitator = facilitator
@@ -18,31 +19,168 @@ class FractalGroup:
         self.winners = {}  # Dict mapping level to winner
         self.current_level = 6  # Start at level 6
         self.current_voting_message = None
+        
+        # Voice phase attributes
+        self.voice_channel = voice_channel
+        self.speaking_time = speaking_time
+        self.voice_phase_active = voice_channel is not None
+        self.speaking_queue = SpeakingQueue(members) if voice_channel else None
+        self.voice_timer = VoiceTimer(speaking_time) if voice_channel else None
+        self.voice_control_message = None
         self.cog = cog
         self.logger = logging.getLogger('bot')
         
         self.logger.info(f"Created fractal group '{thread.name}' with facilitator {facilitator.display_name} and {len(members)} members")
     
     async def start_fractal(self):
-        """Start the fractal voting process"""
+        """Start the fractal voting process (with optional voice phase)"""
         self.logger.info(f"Starting fractal process for '{self.thread.name}' with {len(self.members)} members")
         
-        # Send welcome message
+        if self.voice_phase_active:
+            await self.start_voice_phase()
+        else:
+            # Send welcome message for text-only fractal
+            welcome_msg = (
+                f"# 🎊 **Welcome to {self.thread.name}!** 🎊\n\n"
+                f"**Facilitator:** {self.facilitator.mention}\n"
+                f"**Members:** {', '.join([m.mention for m in self.members])}\n\n"
+                f"🗳️ **Starting fractal voting process...**\n"
+                f"We'll vote through levels 6→1 until we have a winner!\n\n"
+            )
+            await self.thread.send(welcome_msg)
+            
+            # Start voting immediately for text-only fractals
+            await self.start_new_round()
+        
+        # Notify web app that fractal started
+        await web_integration.notify_fractal_started(self)
+    
+    async def start_voice_phase(self):
+        """Start the voice speaking phase"""
         welcome_msg = (
             f"# 🎊 **Welcome to {self.thread.name}!** 🎊\n\n"
             f"**Facilitator:** {self.facilitator.mention}\n"
             f"**Members:** {', '.join([m.mention for m in self.members])}\n\n"
-            f"🗳️ **Starting fractal voting process...**\n"
-            f"We'll vote through levels 6→1 until we have a winner!\n\n"
+            f"🎙️ **Starting Voice Speaking Phase in {self.voice_channel.mention}**\n"
+            f"⏱️ Each person gets {self.speaking_time//60} minutes to speak\n"
+            f"🎯 After everyone speaks, we'll vote here in this thread!\n\n"
         )
         await self.thread.send(welcome_msg)
         
-        # Notify web app that fractal started
-        await web_integration.notify_fractal_started(self)
+        # Create voice control panel
+        from .views import VoiceFractalControlView
+        control_view = VoiceFractalControlView(self)
         
-        # Start first round
-        self.logger.info(f"Starting first round for '{self.thread.name}'")
+        self.voice_control_message = await self.thread.send(
+            self.format_voice_status(), 
+            view=control_view
+        )
+        
+        # Start first speaker
+        await self.start_next_speaker()
+    
+    async def start_next_speaker(self):
+        """Start the next speaker in the queue"""
+        if not self.speaking_queue:
+            return
+        
+        next_speaker = self.speaking_queue.next_speaker()
+        if not next_speaker:
+            # All speakers done, transition to voting
+            await self.transition_to_voting()
+            return
+        
+        # Update control panel
+        await self.update_voice_control_display()
+        
+        # Start timer for this speaker
+        await self.voice_timer.start_timer(
+            next_speaker,
+            self.thread,
+            warning_callback=self.speaker_warning,
+            complete_callback=self.speaker_time_up
+        )
+    
+    async def speaker_warning(self, speaker: discord.Member, seconds_remaining: int):
+        """Called when speaker has limited time remaining"""
+        await self.thread.send(f"⏰ {speaker.mention} - {seconds_remaining} seconds remaining!")
+    
+    async def speaker_time_up(self, speaker: discord.Member):
+        """Called when speaker's time is up"""
+        await self.thread.send(f"⏱️ Time's up {speaker.mention}!")
+        # Auto-advance to next speaker
+        await self.start_next_speaker()
+    
+    async def skip_current_speaker(self):
+        """Skip current speaker and add them back to queue"""
+        if not self.speaking_queue:
+            return
+        
+        current = self.speaking_queue.current_speaker
+        if current:
+            self.voice_timer.stop_timer()
+            next_speaker = self.speaking_queue.skip_and_return()
+            
+            await self.thread.send(f"⏸️ {current.display_name} skipped - will return later")
+            
+            if next_speaker:
+                await self.start_next_speaker()
+            else:
+                await self.transition_to_voting()
+    
+    async def advance_speaker(self):
+        """Manually advance to next speaker"""
+        if self.voice_timer:
+            self.voice_timer.stop_timer()
+        await self.start_next_speaker()
+    
+    async def extend_speaking_time(self, seconds: int):
+        """Add time to current speaker"""
+        if self.voice_timer:
+            self.voice_timer.extend_time(seconds)
+            await self.update_voice_control_display()
+    
+    async def transition_to_voting(self):
+        """Transition from voice phase to voting phase"""
+        await self.thread.send(
+            f"🗣️ **Speaking phase complete!**\n"
+            f"🗳️ **Now starting silent voting phase...**\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        )
+        
+        # Disable voice controls
+        if self.voice_control_message:
+            await self.voice_control_message.edit(view=None)
+        
+        # Switch to voting mode
+        self.voice_phase_active = False
         await self.start_new_round()
+    
+    def format_voice_status(self) -> str:
+        """Format current voice phase status"""
+        if not self.speaking_queue:
+            return "Voice phase not active"
+        
+        status_lines = [f"🎙️ **ZAO Fractal - Level {self.current_level} Speaking Phase**"]
+        
+        current = self.speaking_queue.current_speaker
+        if current:
+            time_remaining = self.voice_timer.get_time_remaining_formatted() if self.voice_timer else "Unknown"
+            status_lines.append(f"**Current Speaker:** {current.mention} ({time_remaining} remaining)")
+        
+        queue_display = self.speaking_queue.format_queue_display()
+        if queue_display != "No speakers in queue":
+            status_lines.append(queue_display)
+        
+        return "\n".join(status_lines)
+    
+    async def update_voice_control_display(self):
+        """Update the voice control panel display"""
+        if self.voice_control_message:
+            try:
+                await self.voice_control_message.edit(content=self.format_voice_status())
+            except discord.NotFound:
+                pass  # Message was deleted
         
     async def add_member(self, member: discord.Member):
         """Add a member to the fractal group"""

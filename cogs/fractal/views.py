@@ -154,3 +154,186 @@ class MemberConfirmationView(discord.ui.View):
             ephemeral=True
         )
         self.awaiting_modification = True
+
+
+class VoiceFractalControlView(discord.ui.View):
+    """Control panel for voice fractal speaking phase"""
+    
+    def __init__(self, fractal_group):
+        super().__init__(timeout=None)
+        self.fractal = fractal_group
+    
+    def is_facilitator(self, user: discord.Member) -> bool:
+        """Check if user is the facilitator"""
+        return user == self.fractal.facilitator
+    
+    def can_control_speaking(self, user: discord.Member) -> bool:
+        """Check if user can control speaking (facilitator or current speaker)"""
+        return (user == self.fractal.facilitator or 
+                (self.fractal.speaking_queue and user == self.fractal.speaking_queue.current_speaker))
+    
+    @discord.ui.button(label="⏭️ Next Speaker", style=discord.ButtonStyle.primary)
+    async def next_speaker(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Advance to next speaker"""
+        if not self.can_control_speaking(interaction.user):
+            await interaction.response.send_message(
+                "Only facilitator or current speaker can advance.", 
+                ephemeral=True
+            )
+            return
+        
+        await interaction.response.defer()
+        await self.fractal.advance_speaker()
+    
+    @discord.ui.button(label="⏸️ Skip & Return", style=discord.ButtonStyle.secondary)
+    async def skip_speaker(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Skip current speaker, add them back to queue"""
+        if not self.is_facilitator(interaction.user):
+            await interaction.response.send_message(
+                "Only facilitator can skip speakers.", 
+                ephemeral=True
+            )
+            return
+        
+        await interaction.response.defer()
+        await self.fractal.skip_current_speaker()
+    
+    @discord.ui.button(label="🗳️ Skip to Voting", style=discord.ButtonStyle.success)
+    async def skip_to_voting(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """End speaking phase and go to voting"""
+        if not self.is_facilitator(interaction.user):
+            await interaction.response.send_message(
+                "Only facilitator can skip to voting.", 
+                ephemeral=True
+            )
+            return
+        
+        # Show confirmation if there are remaining speakers
+        remaining = self.fractal.speaking_queue.get_remaining_speakers()
+        if len(remaining) > 1:  # More than just current speaker
+            view = ConfirmEndEarlyView(self.fractal, remaining)
+            remaining_names = ", ".join([u.display_name for u in remaining[1:]])  # Skip current speaker
+            await interaction.response.send_message(
+                f"⚠️ **End speaking phase early?**\n"
+                f"**{len(remaining)-1} speakers** haven't spoken yet: {remaining_names}",
+                view=view, 
+                ephemeral=True
+            )
+        else:
+            await interaction.response.defer()
+            await self.fractal.transition_to_voting()
+    
+    @discord.ui.button(label="⏱️ +30s", style=discord.ButtonStyle.success)
+    async def extend_30s(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Add 30 seconds to current speaker"""
+        if not self.is_facilitator(interaction.user):
+            await interaction.response.send_message(
+                "Only facilitator can extend time.", 
+                ephemeral=True
+            )
+            return
+        
+        await self.fractal.extend_speaking_time(30)
+        await interaction.response.send_message("⏱️ Added 30 seconds", ephemeral=True)
+    
+    @discord.ui.button(label="⏱️ +1m", style=discord.ButtonStyle.success)
+    async def extend_1m(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Add 1 minute to current speaker"""
+        if not self.is_facilitator(interaction.user):
+            await interaction.response.send_message(
+                "Only facilitator can extend time.", 
+                ephemeral=True
+            )
+            return
+        
+        await self.fractal.extend_speaking_time(60)
+        await interaction.response.send_message("⏱️ Added 1 minute", ephemeral=True)
+
+
+class ConfirmEndEarlyView(discord.ui.View):
+    """Confirmation dialog for ending speaking phase early"""
+    
+    def __init__(self, fractal_group, remaining_speakers):
+        super().__init__(timeout=30)
+        self.fractal = fractal_group
+        self.remaining_speakers = remaining_speakers
+    
+    @discord.ui.button(label="✅ End Early", style=discord.ButtonStyle.danger)
+    async def confirm_end(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Confirm ending speaking phase early"""
+        await interaction.response.defer()
+        await self.fractal.transition_to_voting()
+        
+        # Edit original message to show confirmation
+        try:
+            await interaction.edit_original_response(
+                content="✅ Speaking phase ended early - moving to voting!",
+                view=None
+            )
+        except:
+            pass
+    
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel_end(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Cancel ending early"""
+        await interaction.response.edit_message(
+            content="❌ Cancelled - continuing speaking phase",
+            view=None
+        )
+
+
+class VoiceMemberConfirmationView(MemberConfirmationView):
+    """Extended confirmation view for voice fractals"""
+    
+    def __init__(self, cog, members, facilitator, voice_channel, speaking_time):
+        super().__init__(cog, members, facilitator)
+        self.voice_channel = voice_channel
+        self.speaking_time = speaking_time
+    
+    async def confirm_members(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Start voice-enabled fractal"""
+        if interaction.user != self.facilitator:
+            await interaction.response.send_message("Only the facilitator can start the fractal.", ephemeral=True)
+            return
+        
+        await interaction.response.defer()
+        
+        # Use existing thread creation logic
+        group_name = self.cog._get_next_group_name(interaction.guild.id)
+        channel = interaction.channel
+        if isinstance(channel, discord.Thread):
+            channel = channel.parent
+        
+        thread = await channel.create_thread(
+            name=group_name,
+            type=discord.ChannelType.public_thread,
+            reason="ZAO Fractal Group"
+        )
+        
+        # Add members (existing logic)
+        for member in self.members:
+            try:
+                await thread.add_user(member)
+            except discord.HTTPException:
+                pass
+        
+        # Create VOICE-ENABLED fractal group
+        fractal_group = FractalGroup(
+            thread=thread,
+            members=self.members,
+            facilitator=self.facilitator,
+            cog=self.cog,
+            voice_channel=self.voice_channel,  # NEW!
+            speaking_time=self.speaking_time   # NEW!
+        )
+        
+        # Store and start (existing pattern)
+        self.cog.active_groups[thread.id] = fractal_group
+        
+        await interaction.edit_original_response(
+            content=f"✅ **Voice Fractal started!** Check {thread.mention}",
+            view=None
+        )
+        
+        # This will start voice phase first, then transition to voting
+        await fractal_group.start_fractal()
