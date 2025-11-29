@@ -37,14 +37,14 @@ class FractalCog(BaseCog):
         return f"Fractal Group {counter} - {today}"
     
     @app_commands.command(
-        name="zaofractal",
-        description="Create a ZAO fractal with voice speaking rounds followed by voting"
+        name="fractaltimer",
+        description="Create a fractal with timed speaking rounds followed by voting"
     )
     @app_commands.describe(
         speaking_time="Minutes each person gets to speak (default: 2, range: 1-10)"
     )
-    async def zaofractal(self, interaction: discord.Interaction, speaking_time: int = 2):
-        """Create a ZAO fractal with voice speaking phase followed by voting"""
+    async def fractaltimer(self, interaction: discord.Interaction, speaking_time: int = 2):
+        """Create a fractal with timed speaking phase followed by voting"""
         # Check if interaction has already been responded to
         if interaction.response.is_done():
             return
