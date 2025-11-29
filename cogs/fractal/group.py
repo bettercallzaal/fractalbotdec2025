@@ -34,30 +34,28 @@ class FractalGroup:
         self.logger.info(f"Created fractal group '{thread.name}' with facilitator {facilitator.display_name} and {len(members)} members")
     
     async def start_fractal(self):
-        """Start the fractal voting process (with optional voice phase)"""
-        self.logger.info(f"Starting fractal process for '{self.thread.name}' with {len(self.members)} members")
-        
-        if self.voice_phase_active:
-            await self.start_voice_phase()
-        else:
-            # Send welcome message for text-only fractal
-            welcome_msg = (
-                f"# 🎊 **Welcome to {self.thread.name}!** 🎊\n\n"
-                f"**Facilitator:** {self.facilitator.mention}\n"
-                f"**Members:** {', '.join([m.mention for m in self.members])}\n\n"
-                f"🗳️ **Starting fractal voting process...**\n"
-                f"We'll vote through levels 6→1 until we have a winner!\n\n"
-            )
-            await self.thread.send(welcome_msg)
-            
-            # Start voting immediately for text-only fractals
-            await self.start_new_round()
+        """Initialize the fractal group (doesn't automatically start voice or voting)"""
+        self.logger.info(f"Fractal group '{self.thread.name}' initialized with {len(self.members)} members")
         
         # Notify web app that fractal started (don't let this break the fractal)
         try:
             await web_integration.notify_fractal_started(self)
         except Exception as e:
             self.logger.warning(f"Web integration notification failed: {e}")
+    
+    async def start_voting_only(self):
+        """Start voting without voice phase"""
+        self.logger.info(f"Starting voting-only fractal for '{self.thread.name}'")
+        
+        # Send welcome message for voting-only fractal
+        welcome_msg = (
+            f"🗳️ **Starting fractal voting process...**\n"
+            f"We'll vote through levels 6→1 until we have a winner!\n\n"
+        )
+        await self.thread.send(welcome_msg)
+        
+        # Start voting immediately
+        await self.start_new_round()
     
     async def start_voice_phase(self):
         """Start the voice speaking phase"""

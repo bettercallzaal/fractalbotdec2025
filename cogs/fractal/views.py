@@ -428,11 +428,74 @@ class VoiceMemberConfirmationView(MemberConfirmationView):
         except Exception as e:
             self.cog.logger.error(f"Failed to update interaction response: {e}")
         
-        # This will start voice phase first, then transition to voting
-        self.cog.logger.info("Starting fractal process")
+        # Send fractal created message with options
+        self.cog.logger.info("Fractal group created, showing options")
         try:
-            await fractal_group.start_fractal()
-            self.cog.logger.info("Fractal process started successfully")
+            # Create the fractal options view
+            options_view = FractalOptionsView(fractal_group)
+            
+            await thread.send(
+                f"# 🎊 **Welcome to {thread.name}!** 🎊\n\n"
+                f"**Facilitator:** {self.facilitator.mention}\n"
+                f"**Members:** {', '.join([m.mention for m in self.members])}\n"
+                f"**Voice Channel:** {self.voice_channel.mention}\n\n"
+                f"**Choose how to proceed:**",
+                view=options_view
+            )
+            self.cog.logger.info("Fractal options displayed successfully")
         except Exception as e:
-            self.cog.logger.error(f"Failed to start fractal process: {e}")
-            await thread.send(f"❌ **Error starting fractal:** {str(e)}")
+            self.cog.logger.error(f"Failed to show fractal options: {e}")
+            await thread.send(f"❌ **Error showing options:** {str(e)}")
+
+
+class FractalOptionsView(discord.ui.View):
+    """View for choosing how to proceed with the fractal"""
+    
+    def __init__(self, fractal_group):
+        super().__init__(timeout=300)  # 5 minute timeout
+        self.fractal_group = fractal_group
+    
+    @discord.ui.button(label="🎙️ Start Speaking Phase", style=discord.ButtonStyle.primary, row=0)
+    async def start_speaking(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Start the timed speaking phase"""
+        if interaction.user != self.fractal_group.facilitator:
+            await interaction.response.send_message("Only the facilitator can control the fractal.", ephemeral=True)
+            return
+        
+        await interaction.response.defer()
+        
+        try:
+            # Start the voice phase
+            await self.fractal_group.start_voice_phase()
+            
+            # Update the message to remove buttons
+            await interaction.edit_original_response(
+                content=f"{interaction.message.content}\n\n✅ **Speaking phase started!**",
+                view=None
+            )
+            
+        except Exception as e:
+            await interaction.followup.send(f"❌ **Error starting speaking phase:** {str(e)}", ephemeral=True)
+    
+    @discord.ui.button(label="🗳️ Skip to Voting", style=discord.ButtonStyle.secondary, row=0)
+    async def skip_to_voting(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Skip speaking phase and go directly to voting"""
+        if interaction.user != self.fractal_group.facilitator:
+            await interaction.response.send_message("Only the facilitator can control the fractal.", ephemeral=True)
+            return
+        
+        await interaction.response.defer()
+        
+        try:
+            # Skip voice phase and start voting
+            self.fractal_group.voice_phase_active = False
+            await self.fractal_group.start_voting_only()
+            
+            # Update the message to remove buttons
+            await interaction.edit_original_response(
+                content=f"{interaction.message.content}\n\n✅ **Skipped to voting phase!**",
+                view=None
+            )
+            
+        except Exception as e:
+            await interaction.followup.send(f"❌ **Error starting voting:** {str(e)}", ephemeral=True)
