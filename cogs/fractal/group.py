@@ -70,11 +70,11 @@ class FractalGroup:
         )
         await self.thread.send(welcome_msg)
         
-        # Create voice control panel
+        # Create voice control panel in original channel
         from .views import VoiceFractalControlView
         control_view = VoiceFractalControlView(self)
         
-        self.voice_control_message = await self.thread.send(
+        self.voice_control_message = await self.original_channel.send(
             self.format_voice_status(), 
             view=control_view
         )
@@ -104,6 +104,7 @@ class FractalGroup:
         self.logger.info(f"Starting timer for {next_speaker.display_name} with {self.speaking_time} seconds")
         
         # Send immediate confirmation that timer started to original channel
+        self.logger.info(f"Sending timer notification to channel: {self.original_channel.name} (ID: {self.original_channel.id})")
         await self.original_channel.send(f"🎙️ **{next_speaker.mention} is now speaking** ({self.speaking_time//60} minutes)")
         
         await self.voice_timer.start_timer(
