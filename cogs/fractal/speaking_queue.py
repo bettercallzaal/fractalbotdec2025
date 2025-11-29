@@ -104,38 +104,42 @@ class VoiceTimer:
         self.is_running = True
         self.time_remaining = self.speaking_time
         
-        try:
-            self.current_task = asyncio.create_task(
-                self._run_timer(speaker, callback_channel, warning_callback, complete_callback)
-            )
-            await self.current_task
-        except asyncio.CancelledError:
-            self.logger.info(f"Timer cancelled for {speaker.display_name}")
-        finally:
-            self.is_running = False
+        # Start the timer task but don't await it (non-blocking)
+        self.current_task = asyncio.create_task(
+            self._run_timer(speaker, callback_channel, warning_callback, complete_callback)
+        )
+        
+        self.logger.info(f"Started timer for {speaker.display_name} ({self.speaking_time} seconds)")
     
     async def _run_timer(self, speaker, callback_channel, warning_callback, complete_callback):
         """Internal timer logic"""
-        # Wait until 1 minute remaining
-        if self.speaking_time > 60:
-            await asyncio.sleep(self.speaking_time - 60)
-            self.time_remaining = 60
+        try:
+            # Wait until 1 minute remaining
+            if self.speaking_time > 60:
+                await asyncio.sleep(self.speaking_time - 60)
+                self.time_remaining = 60
+                
+                # Send 1-minute warning
+                if warning_callback:
+                    await warning_callback(speaker, 60)
+                else:
+                    await callback_channel.send(f"⏰ {speaker.mention} - 1 minute remaining!")
             
-            # Send 1-minute warning
-            if warning_callback:
-                await warning_callback(speaker, 60)
+            # Wait for final minute
+            await asyncio.sleep(min(60, self.speaking_time))
+            self.time_remaining = 0
+            
+            # Time's up notification
+            if complete_callback:
+                await complete_callback(speaker)
             else:
-                await callback_channel.send(f"⏰ {speaker.mention} - 1 minute remaining!")
-        
-        # Wait for final minute
-        await asyncio.sleep(min(60, self.speaking_time))
-        self.time_remaining = 0
-        
-        # Time's up notification
-        if complete_callback:
-            await complete_callback(speaker)
-        else:
-            await callback_channel.send(f"⏱️ Time's up {speaker.mention}!")
+                await callback_channel.send(f"⏱️ Time's up {speaker.mention}!")
+                
+        except asyncio.CancelledError:
+            self.logger.info(f"Timer cancelled for {speaker.display_name}")
+            raise
+        finally:
+            self.is_running = False
     
     def extend_time(self, seconds: int):
         """Add time to current timer"""

@@ -92,14 +92,18 @@ class MemberConfirmationView(discord.ui.View):
         # Generate group name
         group_name = self.cog._get_next_group_name(interaction.guild.id)
         
-        # Get the parent channel (in case we're in a thread)
-        channel = interaction.channel
-        if isinstance(channel, discord.Thread):
-            channel = channel.parent
-        elif isinstance(channel, discord.VoiceChannel):
-            # If somehow we're in a voice channel, find a suitable text channel
-            # This shouldn't happen with slash commands, but let's be safe
-            channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
+        # Look for fractal-bot channel first, then fall back to current channel
+        fractal_bot_channel = discord.utils.get(interaction.guild.text_channels, name="fractal-bot")
+        if fractal_bot_channel:
+            channel = fractal_bot_channel
+        else:
+            # Get the parent channel (in case we're in a thread)
+            channel = interaction.channel
+            if isinstance(channel, discord.Thread):
+                channel = channel.parent
+            elif isinstance(channel, discord.VoiceChannel):
+                # If somehow we're in a voice channel, find a suitable text channel
+                channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
         
         # Create public thread
         thread = await channel.create_thread(
@@ -304,15 +308,20 @@ class VoiceMemberConfirmationView(MemberConfirmationView):
         
         # Use existing thread creation logic
         group_name = self.cog._get_next_group_name(interaction.guild.id)
-        channel = interaction.channel
         
-        # Ensure we have a text channel that can create threads
-        if isinstance(channel, discord.Thread):
-            channel = channel.parent
-        elif isinstance(channel, discord.VoiceChannel):
-            # If somehow we're in a voice channel, find a suitable text channel
-            # This shouldn't happen with slash commands, but let's be safe
-            channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
+        # Look for fractal-bot channel first, then fall back to current channel
+        fractal_bot_channel = discord.utils.get(interaction.guild.text_channels, name="fractal-bot")
+        if fractal_bot_channel:
+            channel = fractal_bot_channel
+        else:
+            channel = interaction.channel
+            
+            # Ensure we have a text channel that can create threads
+            if isinstance(channel, discord.Thread):
+                channel = channel.parent
+            elif isinstance(channel, discord.VoiceChannel):
+                # If somehow we're in a voice channel, find a suitable text channel
+                channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
         
         thread = await channel.create_thread(
             name=group_name,
