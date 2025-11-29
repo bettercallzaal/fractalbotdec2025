@@ -38,10 +38,13 @@ class FractalCog(BaseCog):
     
     @app_commands.command(
         name="zaofractal",
-        description="Create a new ZAO fractal voting group from your current voice channel"
+        description="Create a ZAO fractal with voice speaking rounds followed by voting"
     )
-    async def zaofractal(self, interaction: discord.Interaction):
-        """Create a new ZAO fractal voting group from voice channel members"""
+    @app_commands.describe(
+        speaking_time="Minutes each person gets to speak (default: 2, range: 1-10)"
+    )
+    async def zaofractal(self, interaction: discord.Interaction, speaking_time: int = 2):
+        """Create a ZAO fractal with voice speaking phase followed by voting"""
         # Check if interaction has already been responded to
         if interaction.response.is_done():
             return
@@ -55,6 +58,14 @@ class FractalCog(BaseCog):
             # Already responded, continue with followup
             pass
         
+        # Validate speaking time
+        if speaking_time < 1 or speaking_time > 10:
+            await interaction.followup.send(
+                "❌ Speaking time must be between 1-10 minutes!", 
+                ephemeral=True
+            )
+            return
+        
         # Check user's voice state
         voice_check = await self.check_voice_state(interaction.user)
         if not voice_check['success']:
@@ -66,86 +77,9 @@ class FractalCog(BaseCog):
             return
         
         members = voice_check['members']
-        member_mentions = ", ".join([member.mention for member in members])
+        voice_channel = interaction.user.voice.channel
         
-        # Send member confirmation
-        view = MemberConfirmationView(self, members, interaction.user)
-        try:
-            await interaction.followup.send(
-                f"**Start fractal with:** {member_mentions}?",
-                view=view,
-                ephemeral=True
-            )
-        except:
-            # If followup fails, send to channel
-            await interaction.channel.send(
-                f"{interaction.user.mention} **Start fractal with:** {member_mentions}?",
-                view=view
-            )
-    
-    @app_commands.command(
-        name="zaofractal_voice",
-        description="Create a ZAO fractal with voice speaking rounds before voting"
-    )
-    @app_commands.describe(
-        speaking_time="Minutes each person gets to speak (default: 2)",
-        voice_channel="Voice channel to use (default: your current channel)"
-    )
-    async def zaofractal_voice(
-        self, 
-        interaction: discord.Interaction, 
-        speaking_time: int = 2,
-        voice_channel: discord.VoiceChannel = None
-    ):
-        """Create a ZAO fractal with voice speaking phase before voting"""
-        # Check if interaction has already been responded to
-        if interaction.response.is_done():
-            return
-        
-        try:
-            await interaction.response.defer(ephemeral=True)
-        except discord.NotFound:
-            return
-        except discord.InteractionResponded:
-            pass
-        
-        # Validate speaking time
-        if speaking_time < 1 or speaking_time > 10:
-            await interaction.followup.send(
-                "❌ Speaking time must be between 1-10 minutes!", 
-                ephemeral=True
-            )
-            return
-        
-        # Get voice channel
-        if not voice_channel:
-            if interaction.user.voice and interaction.user.voice.channel:
-                voice_channel = interaction.user.voice.channel
-            else:
-                await interaction.followup.send(
-                    "❌ You must be in a voice channel or specify one!", 
-                    ephemeral=True
-                )
-                return
-        
-        # Get members from voice channel
-        members = [member for member in voice_channel.members if not member.bot]
-        
-        if len(members) < 2:
-            await interaction.followup.send(
-                f"❌ Need at least 2 people in {voice_channel.mention}!", 
-                ephemeral=True
-            )
-            return
-        
-        if len(members) > 6:
-            await interaction.followup.send(
-                f"❌ Too many people in {voice_channel.mention}! Maximum is 6 for fractals.", 
-                ephemeral=True
-            )
-            return
-        
-        # Create voice confirmation view
+        # Create voice-enabled confirmation view
         view = VoiceMemberConfirmationView(
             cog=self, 
             members=members, 
@@ -157,11 +91,11 @@ class FractalCog(BaseCog):
         member_list = "\n".join([f"• {member.display_name}" for member in members])
         try:
             await interaction.followup.send(
-                f"🎙️ **Voice Fractal Setup**\n"
+                f"🎙️ **ZAO Fractal Setup**\n"
                 f"**Voice Channel:** {voice_channel.mention}\n"
                 f"**Speaking Time:** {speaking_time} minutes each\n"
                 f"**Members ({len(members)}):**\n{member_list}\n\n"
-                f"**Process:** Speaking rounds → Thread voting → Results",
+                f"**Process:** Speaking rounds → Voting → Results",
                 view=view,
                 ephemeral=True
             )
@@ -169,11 +103,11 @@ class FractalCog(BaseCog):
             # Fallback to channel message
             await interaction.channel.send(
                 f"{interaction.user.mention}\n"
-                f"🎙️ **Voice Fractal Setup**\n"
+                f"🎙️ **ZAO Fractal Setup**\n"
                 f"**Voice Channel:** {voice_channel.mention}\n"
                 f"**Speaking Time:** {speaking_time} minutes each\n"
                 f"**Members ({len(members)}):**\n{member_list}\n\n"
-                f"**Process:** Speaking rounds → Thread voting → Results",
+                f"**Process:** Speaking rounds → Voting → Results",
                 view=view
             )
     

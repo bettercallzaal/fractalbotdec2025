@@ -2,29 +2,39 @@
 
 A comprehensive Discord bot and web application for structured group decision-making through fractal voting. Features **voice-enabled speaking rounds** followed by silent voting, creating transparent, democratic processes with automatic group management, real-time results, and a beautiful web dashboard.
 
-## � What's New in December 2025
+## What's New in December 2025
 
-### **�🎙️ Voice-Enabled Fractals**
-**Major Update**: Now featuring voice speaking rounds before voting!
+### Integrated Voice-Enabled Fractals
+**Major Update**: Voice speaking rounds are now built into the main fractal experience!
 
-- **New Command**: `/zaofractal_voice` with customizable speaking time (1-10 minutes)
+- **Enhanced Command**: `/zaofractal [speaking_time]` now includes voice speaking rounds by default
 - **Smart Timer System**: Automatic warnings, speaker transitions, and queue management
 - **Voice Control Panel**: Real-time controls for facilitators and speakers
-- **Seamless Integration**: Voice phase transitions smoothly to existing voting system
-- **Backward Compatible**: Original `/zaofractal` command unchanged
+- **Seamless Flow**: Speaking rounds → Auto-transition to voting → Results
+- **Customizable**: Optional speaking time parameter (1-10 minutes, default: 2)
 
-## 🎙️ Voice-First Fractal Experience
+## Integrated Fractal Experience
 
-Voice-enabled fractals combine structured speaking rounds with traditional voting for the ultimate democratic experience!
+Every fractal now combines structured speaking rounds with voting for the ultimate democratic experience!
 
-### **Two Fractal Modes**
-- **🎙️ Voice Fractals** (`/zaofractal_voice`): Speaking rounds → Silent voting → Results
-- **💬 Text Fractals** (`/zaofractal`): Direct to voting (classic mode)
+### Unified Fractal Process
+**`/zaofractal [speaking_time]`**: Voice speaking rounds → Auto-transition to voting → Results
 
 ## Overview
 
 The ZAO Fractal Voting System streamlines group consensus-building with these core features:
 
+- **Voice Speaking Rounds**: Timed speaking phases with queue management
+- **Smart Timer System**: Automatic warnings and speaker transitions
+- **Voice Control Panel**: Next speaker, skip & return, time extensions
+- **Silent Voting Phase**: Traditional button voting after discussions
+- **Progressive Elimination**: Vote through rounds until one winner emerges
+- **Public & Transparent**: All phases visible to everyone
+- **Tie-Breaking**: Automatic random selection for tied votes
+- **Multi-Channel Results**: Results posted to both fractal thread and general channel
+- **Web Dashboard**: Beautiful Next.js web app for tracking participation and progress
+- **Discord OAuth**: Seamless sign-in with Discord for personalized experience
+- **Admin Controls**: Full management tools for moderators
 - **🎙️ Voice Speaking Rounds**: Timed speaking phases with queue management
 - **⏱️ Smart Timer System**: Automatic warnings and speaker transitions
 - **🎛️ Voice Control Panel**: Next speaker, skip & return, time extensions
@@ -162,40 +172,33 @@ The web dashboard is deployed on Vercel with Neon PostgreSQL:
 
 ## Usage
 
-### **🎙️ Voice Fractal Commands**
+### **🎙️ Main Fractal Command**
 
-#### **`/zaofractal_voice [speaking_time] [voice_channel]`**
-Create a fractal with voice speaking rounds before voting.
+#### **`/zaofractal [speaking_time]`**
+Create a ZAO fractal with integrated voice speaking rounds followed by voting.
 
 **Parameters:**
 - `speaking_time` (optional): Minutes each person gets to speak (1-10, default: 2)
-- `voice_channel` (optional): Voice channel to use (default: your current channel)
 
 **Example Usage:**
 ```
-/zaofractal_voice speaking_time:3
-/zaofractal_voice speaking_time:2 voice_channel:#general-voice
+/zaofractal
+/zaofractal speaking_time:3
+/zaofractal speaking_time:1
 ```
 
-**Process Flow:**
-1. **Setup**: Bot detects members in voice channel, shows confirmation
+**Integrated Process Flow:**
+1. **Setup**: Bot detects members in your voice channel, shows confirmation
 2. **Speaking Phase**: Each person gets timed speaking rounds with control panel
-3. **Voting Phase**: Silent voting with traditional button system
-4. **Results**: Winner announcements and level progression
+3. **Auto-Transition**: Seamlessly moves to voting after everyone speaks
+4. **Voting Phase**: Silent voting with traditional button system
+5. **Results**: Winner announcements and level progression
 
 #### **Voice Control Panel** (Available during speaking phase)
 - **⏭️ Next Speaker**: Advance to next person (facilitator or current speaker can use)
 - **⏸️ Skip & Return**: Skip current speaker, add them back to queue (facilitator only)
 - **🗳️ Skip to Voting**: End speaking phase early and start voting (facilitator only)
 - **⏱️ +30s / +1m**: Add time to current speaker (facilitator only)
-
-### **💬 Traditional Fractal Commands**
-
-#### **`/zaofractal`**
-Create a traditional text-only fractal (direct to voting).
-- Pulls members from your current voice channel
-- Goes directly to voting phase (no speaking rounds)
-- Same voting system and results as voice fractals
 
 ### **📊 Status & Management Commands**
 - **`/status`** - Show current status of an active fractal group (use in fractal threads)
@@ -228,12 +231,12 @@ Create a traditional text-only fractal (direct to voting).
 - **`/admin_server_stats`** - Overall server fractal statistics
 - **`/admin_export_data [thread_id]`** - Export fractal data as JSON file
 
-## 🎯 Complete Fractal Process Examples
+## 🎯 Complete Fractal Process Example
 
-### **🎙️ Voice Fractal Flow (Recommended)**
+### **🎙️ Integrated Fractal Flow**
 
 1. **Join a voice channel** with 2-6 members
-2. **Run `/zaofractal_voice speaking_time:3`** in any text channel
+2. **Run `/zaofractal speaking_time:3`** in any text channel
 3. **Confirm setup** - Bot shows voice channel, speaking time, and member list
 4. **Click ✅ Start Fractal** - Public thread created automatically (e.g., "Fractal Group 1 - Dec 1, 2025")
 
@@ -250,22 +253,13 @@ Create a traditional text-only fractal (direct to voting).
 7. **Auto-advance** - "⏱️ Time's up @alice!" → Next speaker starts
 8. **Flexible control** - Skip unavailable speakers, extend time, or end early
 
-#### **Voting Phase**
-9. **Automatic transition** - "🗣️ Speaking phase complete! 🗳️ Now starting silent voting phase..."
-10. **Vote in rounds** by clicking candidate buttons (same as traditional fractals)
+#### **Automatic Transition to Voting**
+9. **Seamless transition** - "🗣️ Speaking phase complete! 🗳️ Now starting silent voting phase..."
+10. **Vote in rounds** by clicking candidate buttons
 11. **Winners announced** after each round (requires 50%+ votes)
 12. **Ties broken randomly** when candidates have equal votes
 13. **Final results** posted to fractal thread and general channel
 14. **Thread archived** but remains accessible for reference
-
-### **💬 Traditional Fractal Flow (Classic)**
-
-1. **Join a voice channel** with 2-6 members
-2. **Run `/zaofractal`** in any text channel
-3. **Confirm members** with ✅ or modify with ❌
-4. **Public thread created** automatically
-5. **Direct to voting** - No speaking phase, immediate button voting
-6. **Same voting process** as voice fractals from step 10 above
 
 ### **🎛️ Voice Control Examples**
 
