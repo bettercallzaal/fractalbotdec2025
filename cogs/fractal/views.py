@@ -140,7 +140,8 @@ class MemberConfirmationView(discord.ui.View):
             thread=thread,
             members=self.members,
             facilitator=self.facilitator,
-            cog=self.cog
+            cog=self.cog,
+            original_channel=interaction.channel
         )
         
         # Store active group
@@ -423,8 +424,9 @@ class VoiceMemberConfirmationView(discord.ui.View):
                 members=self.members,
                 facilitator=self.facilitator,
                 cog=self.cog,
-                voice_channel=self.voice_channel,  # NEW!
-                speaking_time=self.speaking_time   # NEW!
+                voice_channel=self.voice_channel,
+                speaking_time=self.speaking_time,
+                original_channel=interaction.channel  # Send timer notifications to original channel
             )
             self.cog.logger.info("FractalGroup created successfully")
         except Exception as e:

@@ -9,11 +9,12 @@ from .speaking_queue import SpeakingQueue, VoiceTimer
 class FractalGroup:
     """Core class for managing a fractal voting group"""
     
-    def __init__(self, thread: discord.Thread, members: List[discord.Member], facilitator: discord.Member, cog, voice_channel=None, speaking_time=120):
+    def __init__(self, thread: discord.Thread, members: List[discord.Member], facilitator: discord.Member, cog, voice_channel=None, speaking_time=120, original_channel=None):
         """Initialize a new fractal group"""
         self.thread = thread
         self.facilitator = facilitator
         self.members = members
+        self.original_channel = original_channel or thread  # Use original channel for timer notifications
         self.active_candidates = members.copy()  # Members currently in voting pool
         self.votes = {}  # Dict mapping voter_id to candidate_id
         self.winners = {}  # Dict mapping level to winner
@@ -102,12 +103,12 @@ class FractalGroup:
         # Start timer for this speaker
         self.logger.info(f"Starting timer for {next_speaker.display_name} with {self.speaking_time} seconds")
         
-        # Send immediate confirmation that timer started
-        await self.thread.send(f"🎙️ **{next_speaker.mention} is now speaking** ({self.speaking_time//60} minutes)")
+        # Send immediate confirmation that timer started to original channel
+        await self.original_channel.send(f"🎙️ **{next_speaker.mention} is now speaking** ({self.speaking_time//60} minutes)")
         
         await self.voice_timer.start_timer(
             next_speaker,
-            self.thread,
+            self.original_channel,  # Send timer notifications to original channel
             warning_callback=self.speaker_warning,
             complete_callback=self.speaker_time_up
         )
@@ -117,11 +118,11 @@ class FractalGroup:
     
     async def speaker_warning(self, speaker: discord.Member, seconds_remaining: int):
         """Called when speaker has limited time remaining"""
-        await self.thread.send(f"⏰ {speaker.mention} - {seconds_remaining} seconds remaining!")
+        await self.original_channel.send(f"⏰ {speaker.mention} - {seconds_remaining} seconds remaining!")
     
     async def speaker_time_up(self, speaker: discord.Member):
         """Called when speaker's time is up"""
-        await self.thread.send(f"⏱️ Time's up {speaker.mention}!")
+        await self.original_channel.send(f"⏱️ Time's up {speaker.mention}!")
         # Auto-advance to next speaker
         await self.start_next_speaker()
     
@@ -158,11 +159,13 @@ class FractalGroup:
         """Transition from voice phase to voting phase"""
         await self.thread.send(
             f"🗣️ **Speaking phase complete!**\n"
-            f"🗳️ **Now starting silent voting phase...**\n"
+            f"🗳️ **Now starting voting phase...**\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         )
         
-        # Stop display updates and voice controls
+        # Stop timer, display updates and voice controls
+        if self.voice_timer:
+            self.voice_timer.stop_timer()
         self.stop_display_updates()
         if self.voice_control_message:
             await self.voice_control_message.edit(view=None)
