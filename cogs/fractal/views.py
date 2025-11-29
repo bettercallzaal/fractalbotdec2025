@@ -93,17 +93,28 @@ class MemberConfirmationView(discord.ui.View):
         group_name = self.cog._get_next_group_name(interaction.guild.id)
         
         # Look for fractal-bot channel first, then fall back to current channel
+        channel = interaction.channel
         fractal_bot_channel = discord.utils.get(interaction.guild.text_channels, name="fractal-bot")
+        
+        # Try to use fractal-bot channel if it exists and bot has permissions
         if fractal_bot_channel:
-            channel = fractal_bot_channel
-        else:
-            # Get the parent channel (in case we're in a thread)
-            channel = interaction.channel
-            if isinstance(channel, discord.Thread):
-                channel = channel.parent
-            elif isinstance(channel, discord.VoiceChannel):
-                # If somehow we're in a voice channel, find a suitable text channel
-                channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
+            try:
+                # Check if bot can create threads in fractal-bot channel
+                bot_permissions = fractal_bot_channel.permissions_for(interaction.guild.me)
+                if bot_permissions.create_public_threads:
+                    channel = fractal_bot_channel
+                    self.cog.logger.info(f"Using fractal-bot channel for thread creation")
+                else:
+                    self.cog.logger.warning(f"No thread creation permissions in fractal-bot channel, using fallback")
+            except Exception as e:
+                self.cog.logger.error(f"Error checking fractal-bot channel permissions: {e}")
+        
+        # Get the parent channel (in case we're in a thread)
+        if isinstance(channel, discord.Thread):
+            channel = channel.parent
+        elif isinstance(channel, discord.VoiceChannel):
+            # If somehow we're in a voice channel, find a suitable text channel
+            channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
         
         # Create public thread
         thread = await channel.create_thread(
@@ -310,18 +321,28 @@ class VoiceMemberConfirmationView(MemberConfirmationView):
         group_name = self.cog._get_next_group_name(interaction.guild.id)
         
         # Look for fractal-bot channel first, then fall back to current channel
+        channel = interaction.channel
         fractal_bot_channel = discord.utils.get(interaction.guild.text_channels, name="fractal-bot")
+        
+        # Try to use fractal-bot channel if it exists and bot has permissions
         if fractal_bot_channel:
-            channel = fractal_bot_channel
-        else:
-            channel = interaction.channel
-            
-            # Ensure we have a text channel that can create threads
-            if isinstance(channel, discord.Thread):
-                channel = channel.parent
-            elif isinstance(channel, discord.VoiceChannel):
-                # If somehow we're in a voice channel, find a suitable text channel
-                channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
+            try:
+                # Check if bot can create threads in fractal-bot channel
+                bot_permissions = fractal_bot_channel.permissions_for(interaction.guild.me)
+                if bot_permissions.create_public_threads:
+                    channel = fractal_bot_channel
+                    self.cog.logger.info(f"Using fractal-bot channel for thread creation")
+                else:
+                    self.cog.logger.warning(f"No thread creation permissions in fractal-bot channel, using fallback")
+            except Exception as e:
+                self.cog.logger.error(f"Error checking fractal-bot channel permissions: {e}")
+        
+        # Ensure we have a text channel that can create threads
+        if isinstance(channel, discord.Thread):
+            channel = channel.parent
+        elif isinstance(channel, discord.VoiceChannel):
+            # If somehow we're in a voice channel, find a suitable text channel
+            channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
         
         thread = await channel.create_thread(
             name=group_name,
