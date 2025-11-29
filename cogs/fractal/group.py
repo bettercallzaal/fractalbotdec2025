@@ -52,8 +52,11 @@ class FractalGroup:
             # Start voting immediately for text-only fractals
             await self.start_new_round()
         
-        # Notify web app that fractal started
-        await web_integration.notify_fractal_started(self)
+        # Notify web app that fractal started (don't let this break the fractal)
+        try:
+            await web_integration.notify_fractal_started(self)
+        except Exception as e:
+            self.logger.warning(f"Web integration notification failed: {e}")
     
     async def start_voice_phase(self):
         """Start the voice speaking phase"""
