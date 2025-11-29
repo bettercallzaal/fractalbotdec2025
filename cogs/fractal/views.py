@@ -301,8 +301,14 @@ class VoiceMemberConfirmationView(MemberConfirmationView):
         # Use existing thread creation logic
         group_name = self.cog._get_next_group_name(interaction.guild.id)
         channel = interaction.channel
+        
+        # Ensure we have a text channel that can create threads
         if isinstance(channel, discord.Thread):
             channel = channel.parent
+        elif isinstance(channel, discord.VoiceChannel):
+            # If somehow we're in a voice channel, find a suitable text channel
+            # This shouldn't happen with slash commands, but let's be safe
+            channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
         
         thread = await channel.create_thread(
             name=group_name,
