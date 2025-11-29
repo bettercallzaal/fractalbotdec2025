@@ -96,6 +96,10 @@ class MemberConfirmationView(discord.ui.View):
         channel = interaction.channel
         if isinstance(channel, discord.Thread):
             channel = channel.parent
+        elif isinstance(channel, discord.VoiceChannel):
+            # If somehow we're in a voice channel, find a suitable text channel
+            # This shouldn't happen with slash commands, but let's be safe
+            channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
         
         # Create public thread
         thread = await channel.create_thread(
