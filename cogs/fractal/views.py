@@ -316,26 +316,39 @@ class VoiceMemberConfirmationView(MemberConfirmationView):
     
     async def confirm_members(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Start voice-enabled fractal"""
+        self.cog.logger.info(f"VoiceMemberConfirmationView.confirm_members called by {interaction.user.display_name}")
+        
         if interaction.user != self.facilitator:
+            self.cog.logger.warning(f"Non-facilitator {interaction.user.display_name} tried to start fractal")
             await interaction.response.send_message("Only the facilitator can start the fractal.", ephemeral=True)
             return
         
         # For button interactions, we need to defer differently
+        self.cog.logger.info("Attempting to defer interaction")
         try:
             await interaction.response.defer()
+            self.cog.logger.info("Interaction deferred successfully")
         except discord.InteractionResponded:
             # Interaction already responded to, continue
+            self.cog.logger.info("Interaction already responded, continuing")
             pass
+        except Exception as e:
+            self.cog.logger.error(f"Error deferring interaction: {e}")
+            return
         
         # Use existing thread creation logic
+        self.cog.logger.info("Generating group name")
         group_name = self.cog._get_next_group_name(interaction.guild.id)
+        self.cog.logger.info(f"Generated group name: {group_name}")
         
         # Look for fractal-bot channel first, then fall back to current channel
         channel = interaction.channel
+        self.cog.logger.info(f"Initial channel: {channel.name} (type: {type(channel).__name__})")
         fractal_bot_channel = discord.utils.get(interaction.guild.text_channels, name="fractal-bot")
         
         # Try to use fractal-bot channel if it exists and bot has permissions
         if fractal_bot_channel:
+            self.cog.logger.info("Found fractal-bot channel, checking permissions")
             try:
                 # Check if bot can create threads in fractal-bot channel
                 bot_permissions = fractal_bot_channel.permissions_for(interaction.guild.me)
@@ -346,19 +359,33 @@ class VoiceMemberConfirmationView(MemberConfirmationView):
                     self.cog.logger.warning(f"No thread creation permissions in fractal-bot channel, using fallback")
             except Exception as e:
                 self.cog.logger.error(f"Error checking fractal-bot channel permissions: {e}")
+        else:
+            self.cog.logger.info("No fractal-bot channel found, using current channel")
         
         # Ensure we have a text channel that can create threads
         if isinstance(channel, discord.Thread):
+            self.cog.logger.info("Channel is a thread, using parent")
             channel = channel.parent
         elif isinstance(channel, discord.VoiceChannel):
+            self.cog.logger.info("Channel is voice channel, finding text channel")
             # If somehow we're in a voice channel, find a suitable text channel
             channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
         
-        thread = await channel.create_thread(
-            name=group_name,
-            type=discord.ChannelType.public_thread,
-            reason="ZAO Fractal Group"
-        )
+        self.cog.logger.info(f"Creating thread '{group_name}' in channel {channel.name}")
+        try:
+            thread = await channel.create_thread(
+                name=group_name,
+                type=discord.ChannelType.public_thread,
+                reason="ZAO Fractal Group"
+            )
+            self.cog.logger.info(f"Thread created successfully: {thread.name} (ID: {thread.id})")
+        except Exception as e:
+            self.cog.logger.error(f"Failed to create thread: {e}")
+            await interaction.edit_original_response(
+                content=f"❌ **Failed to create fractal thread:** {str(e)}",
+                view=None
+            )
+            return
         
         # Add members (existing logic)
         for member in self.members:
@@ -368,22 +395,44 @@ class VoiceMemberConfirmationView(MemberConfirmationView):
                 pass
         
         # Create VOICE-ENABLED fractal group
-        fractal_group = FractalGroup(
-            thread=thread,
-            members=self.members,
-            facilitator=self.facilitator,
-            cog=self.cog,
-            voice_channel=self.voice_channel,  # NEW!
-            speaking_time=self.speaking_time   # NEW!
-        )
+        self.cog.logger.info(f"Creating FractalGroup with {len(self.members)} members, voice_channel={self.voice_channel.name}, speaking_time={self.speaking_time}")
+        try:
+            fractal_group = FractalGroup(
+                thread=thread,
+                members=self.members,
+                facilitator=self.facilitator,
+                cog=self.cog,
+                voice_channel=self.voice_channel,  # NEW!
+                speaking_time=self.speaking_time   # NEW!
+            )
+            self.cog.logger.info("FractalGroup created successfully")
+        except Exception as e:
+            self.cog.logger.error(f"Failed to create FractalGroup: {e}")
+            await interaction.edit_original_response(
+                content=f"❌ **Failed to create fractal group:** {str(e)}",
+                view=None
+            )
+            return
         
         # Store and start (existing pattern)
+        self.cog.logger.info(f"Storing fractal group with thread ID {thread.id}")
         self.cog.active_groups[thread.id] = fractal_group
         
-        await interaction.edit_original_response(
-            content=f"✅ **Voice Fractal started!** Check {thread.mention}",
-            view=None
-        )
+        self.cog.logger.info("Updating interaction response")
+        try:
+            await interaction.edit_original_response(
+                content=f"✅ **Voice Fractal started!** Check {thread.mention}",
+                view=None
+            )
+            self.cog.logger.info("Interaction response updated successfully")
+        except Exception as e:
+            self.cog.logger.error(f"Failed to update interaction response: {e}")
         
         # This will start voice phase first, then transition to voting
-        await fractal_group.start_fractal()
+        self.cog.logger.info("Starting fractal process")
+        try:
+            await fractal_group.start_fractal()
+            self.cog.logger.info("Fractal process started successfully")
+        except Exception as e:
+            self.cog.logger.error(f"Failed to start fractal process: {e}")
+            await thread.send(f"❌ **Error starting fractal:** {str(e)}")
