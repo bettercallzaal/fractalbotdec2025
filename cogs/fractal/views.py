@@ -135,13 +135,18 @@ class MemberConfirmationView(discord.ui.View):
             except discord.HTTPException:
                 pass  # Member might already be in thread or have permissions issues
         
+        # Get the actual original channel (not thread)
+        original_channel = interaction.channel
+        if isinstance(interaction.channel, discord.Thread):
+            original_channel = interaction.channel.parent
+        
         # Create and start fractal group
         fractal_group = FractalGroup(
             thread=thread,
             members=self.members,
             facilitator=self.facilitator,
             cog=self.cog,
-            original_channel=interaction.channel
+            original_channel=original_channel
         )
         
         # Store active group
@@ -418,6 +423,13 @@ class VoiceMemberConfirmationView(discord.ui.View):
         
         # Create VOICE-ENABLED fractal group
         self.cog.logger.info(f"Creating FractalGroup with {len(self.members)} members, voice_channel={self.voice_channel.name}, speaking_time={self.speaking_time}")
+        # Get the actual original channel (not thread)
+        original_channel = interaction.channel
+        if isinstance(interaction.channel, discord.Thread):
+            original_channel = interaction.channel.parent
+        
+        self.cog.logger.info(f"Original channel for timer notifications: {original_channel.name} (ID: {original_channel.id})")
+        self.cog.logger.info(f"Thread for voting: {thread.name} (ID: {thread.id})")
         try:
             fractal_group = FractalGroup(
                 thread=thread,
@@ -426,7 +438,7 @@ class VoiceMemberConfirmationView(discord.ui.View):
                 cog=self.cog,
                 voice_channel=self.voice_channel,
                 speaking_time=self.speaking_time,
-                original_channel=interaction.channel  # Send timer notifications to original channel
+                original_channel=original_channel  # Send timer notifications to original channel
             )
             self.cog.logger.info("FractalGroup created successfully")
         except Exception as e:
