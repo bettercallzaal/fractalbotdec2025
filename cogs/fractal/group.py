@@ -27,6 +27,7 @@ class FractalGroup:
         self.speaking_queue = SpeakingQueue(members) if voice_channel else None
         self.voice_timer = VoiceTimer(speaking_time) if voice_channel else None
         self.voice_control_message = None
+        self.display_update_task = None
         self.cog = cog
         self.logger = logging.getLogger('bot')
         
@@ -112,6 +113,9 @@ class FractalGroup:
             warning_callback=self.speaker_warning,
             complete_callback=self.speaker_time_up
         )
+        
+        # Start display update task for live countdown
+        self.start_display_update_task()
     
     async def speaker_warning(self, speaker: discord.Member, seconds_remaining: int):
         """Called when speaker has limited time remaining"""
@@ -160,7 +164,8 @@ class FractalGroup:
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         )
         
-        # Disable voice controls
+        # Stop display updates and voice controls
+        self.stop_display_updates()
         if self.voice_control_message:
             await self.voice_control_message.edit(view=None)
         
@@ -380,3 +385,27 @@ class FractalGroup:
             del self.cog.active_groups[self.thread.id]
         
         self.logger.info(f"Fractal group '{self.thread.name}' completed")
+    
+    def start_display_update_task(self):
+        """Start task to update voice control display every 5 seconds"""
+        if self.display_update_task:
+            self.display_update_task.cancel()
+        
+        self.display_update_task = asyncio.create_task(self._update_display_loop())
+    
+    async def _update_display_loop(self):
+        """Update the voice control display every 5 seconds"""
+        try:
+            while self.voice_phase_active and self.voice_timer and self.voice_timer.is_running:
+                await asyncio.sleep(5)  # Update every 5 seconds
+                await self.update_voice_control_display()
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            self.logger.error(f"Display update error: {e}")
+    
+    def stop_display_updates(self):
+        """Stop the display update task"""
+        if self.display_update_task:
+            self.display_update_task.cancel()
+            self.display_update_task = None

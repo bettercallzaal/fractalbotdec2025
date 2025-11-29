@@ -112,29 +112,33 @@ class VoiceTimer:
         self.logger.info(f"Started timer for {speaker.display_name} ({self.speaking_time} seconds)")
     
     async def _run_timer(self, speaker, callback_channel, warning_callback, complete_callback):
-        """Internal timer logic"""
+        """Internal timer logic with live countdown"""
         try:
             self.logger.info(f"Starting timer for {speaker.display_name}: {self.speaking_time} seconds")
             
-            # Wait until 1 minute remaining
-            if self.speaking_time > 60:
-                wait_time = self.speaking_time - 60
-                self.logger.info(f"Waiting {wait_time} seconds before 1-minute warning")
-                await asyncio.sleep(wait_time)
-                self.time_remaining = 60
+            # Count down second by second for live updates
+            while self.time_remaining > 0:
+                await asyncio.sleep(1)
+                self.time_remaining -= 1
                 
                 # Send 1-minute warning
-                self.logger.info(f"Sending 1-minute warning for {speaker.display_name}")
-                if warning_callback:
-                    await warning_callback(speaker, 60)
-                else:
-                    await callback_channel.send(f"⏰ {speaker.mention} - 1 minute remaining!")
-            
-            # Wait for final minute
-            final_wait = min(60, self.speaking_time)
-            self.logger.info(f"Waiting final {final_wait} seconds for {speaker.display_name}")
-            await asyncio.sleep(final_wait)
-            self.time_remaining = 0
+                if self.time_remaining == 60:
+                    self.logger.info(f"Sending 1-minute warning for {speaker.display_name}")
+                    if warning_callback:
+                        await warning_callback(speaker, 60)
+                    else:
+                        await callback_channel.send(f"⏰ {speaker.mention} - 1 minute remaining!")
+                
+                # Send 30-second warning
+                elif self.time_remaining == 30:
+                    if warning_callback:
+                        await warning_callback(speaker, 30)
+                    else:
+                        await callback_channel.send(f"⏰ {speaker.mention} - 30 seconds remaining!")
+                
+                # Send 10-second countdown
+                elif self.time_remaining <= 10 and self.time_remaining > 0:
+                    await callback_channel.send(f"⏰ {self.time_remaining}...")
             
             # Time's up notification
             self.logger.info(f"Time's up for {speaker.display_name}")
@@ -168,10 +172,14 @@ class VoiceTimer:
         self.is_running = False
     
     def get_time_remaining_formatted(self) -> str:
-        """Get formatted time remaining"""
+        """Get formatted time remaining string"""
         if not self.is_running:
             return "Not running"
         
         minutes = self.time_remaining // 60
         seconds = self.time_remaining % 60
         return f"{minutes}:{seconds:02d}"
+    
+    def get_time_remaining_seconds(self) -> int:
+        """Get time remaining in seconds"""
+        return self.time_remaining if self.is_running else 0
