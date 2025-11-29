@@ -423,12 +423,10 @@ class VoiceMemberConfirmationView(discord.ui.View):
         
         # Create VOICE-ENABLED fractal group
         self.cog.logger.info(f"Creating FractalGroup with {len(self.members)} members, voice_channel={self.voice_channel.name}, speaking_time={self.speaking_time}")
-        # Get the actual original channel (not thread)
-        original_channel = interaction.channel
-        if isinstance(interaction.channel, discord.Thread):
-            original_channel = interaction.channel.parent
+        # Use voice channel for timer notifications since that's where people are
+        timer_channel = self.voice_channel
         
-        self.cog.logger.info(f"Original channel for timer notifications: {original_channel.name} (ID: {original_channel.id})")
+        self.cog.logger.info(f"Voice channel for timer notifications: {timer_channel.name} (ID: {timer_channel.id})")
         self.cog.logger.info(f"Thread for voting: {thread.name} (ID: {thread.id})")
         try:
             fractal_group = FractalGroup(
@@ -438,7 +436,7 @@ class VoiceMemberConfirmationView(discord.ui.View):
                 cog=self.cog,
                 voice_channel=self.voice_channel,
                 speaking_time=self.speaking_time,
-                original_channel=original_channel  # Send timer notifications to original channel
+                original_channel=timer_channel  # Send timer notifications to voice channel
             )
             self.cog.logger.info("FractalGroup created successfully")
         except Exception as e:
