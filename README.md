@@ -7,7 +7,7 @@ A comprehensive Discord bot and web application for structured group decision-ma
 ### Integrated Voice-Enabled Fractals
 **Major Update**: Voice speaking rounds are now built into the main fractal experience!
 
-- **Enhanced Command**: `/zaofractal [speaking_time]` now includes optional voice speaking rounds
+- **Enhanced Command**: `/fractaltimer [speaking_time]` now includes optional voice speaking rounds
 - **Smart Timer System**: Automatic warnings, speaker transitions, and queue management
 - **Voice Control Panel**: Real-time controls for facilitators and speakers
 - **Seamless Flow**: Speaking rounds → Auto-transition to voting → Results
@@ -18,7 +18,7 @@ A comprehensive Discord bot and web application for structured group decision-ma
 Every fractal now combines structured speaking rounds with voting for the ultimate democratic experience!
 
 ### Unified Fractal Process
-**`/zaofractal [speaking_time]`**: Optional voice speaking rounds → Voting → Results
+**`/fractaltimer [speaking_time]`**: Optional voice speaking rounds → Voting → Results
 
 ## Overview
 
@@ -66,7 +66,7 @@ The ZAO Fractal Voting System streamlines group consensus-building with these co
 - **📊 Real-Time Display**: Live queue status with remaining speakers and time
 
 ### **🚀 Streamlined User Experience**
-- **Simple Command**: `/zaofractal` - integrated voice and voting experience
+- **Simple Command**: `/fractaltimer` - integrated voice and voting experience
 - **Smart Member Detection**: Pulls members from your current voice channel
 - **Quick Confirmation**: Simple ✅/❌ buttons to start or modify participants
 - **Auto-Naming**: Groups named "Fractal Group 1 - Dec 1, 2025" with daily counters
@@ -174,17 +174,17 @@ The web dashboard is deployed on Vercel with Neon PostgreSQL:
 
 ### **🎙️ Main Fractal Command**
 
-#### **`/zaofractal [speaking_time]`**
-Create a ZAO fractal with optional voice speaking rounds followed by voting.
+#### **`/fractaltimer [speaking_time]`**
+Create a fractal with timed speaking rounds followed by voting.
 
 **Parameters:**
 - `speaking_time` (optional): Minutes each person gets to speak (1-10, default: 2)
 
 **Example Usage:**
 ```
-/zaofractal
-/zaofractal speaking_time:3
-/zaofractal speaking_time:1
+/fractaltimer
+/fractaltimer speaking_time:3
+/fractaltimer speaking_time:1
 ```
 
 **Integrated Process Flow:**
@@ -236,7 +236,7 @@ Create a ZAO fractal with optional voice speaking rounds followed by voting.
 ### **🎙️ Integrated Fractal Flow**
 
 1. **Join a voice channel** with 2-6 members
-2. **Run `/zaofractal speaking_time:3`** in any text channel
+2. **Run `/fractaltimer speaking_time:3`** in any text channel
 3. **Confirm setup** - Bot shows voice channel, speaking time, and member list
 4. **Click ✅ Start Fractal** - Public thread created automatically (e.g., "Fractal Group 1 - Dec 1, 2025")
 
@@ -304,7 +304,7 @@ fractalbotdec2025/
 │   ├── base.py             # Base cog with utility methods
 │   └── fractal/
 │       ├── __init__.py     # Package initialization
-│       ├── cog.py          # Slash commands (/zaofractal) and admin tools
+│       ├── cog.py          # Slash commands (/fractaltimer) and admin tools
 │       ├── group.py        # FractalGroup with voice phase and voting logic
 │       ├── speaking_queue.py # Voice queue management and timer system (NEW)
 │       └── views.py        # UI components, voice controls, and confirmations
