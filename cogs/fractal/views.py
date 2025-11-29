@@ -335,16 +335,115 @@ class VoiceMemberConfirmationView(discord.ui.View):
         
         await self._create_fractal_group(interaction, start_speaking=False)
     
-    @discord.ui.button(label="⏱️ Start Timer", style=discord.ButtonStyle.primary, row=0)
+    @discord.ui.button(label="⏱️ Start Timer Only", style=discord.ButtonStyle.primary, row=0)
+    async def start_timer_only(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Start timer in voice channel without creating thread"""
+        self.cog.logger.info(f"Start Timer Only (no thread) called by {interaction.user.display_name}")
+        
+        if interaction.user != self.facilitator:
+            await interaction.response.send_message("Only the facilitator can start the fractal.", ephemeral=True)
+            return
+        
+        await self._start_timer_only(interaction)
+    
+    @discord.ui.button(label="⏱️ Start Timer + Voting", style=discord.ButtonStyle.secondary, row=1)
     async def start_with_timer(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Start fractal with speaking phase and timers"""
-        self.cog.logger.info(f"Start Timer (with speaking) called by {interaction.user.display_name}")
+        self.cog.logger.info(f"Start Timer + Voting called by {interaction.user.display_name}")
         
         if interaction.user != self.facilitator:
             await interaction.response.send_message("Only the facilitator can start the fractal.", ephemeral=True)
             return
         
         await self._create_fractal_group(interaction, start_speaking=True)
+    
+    async def _start_timer_only(self, interaction: discord.Interaction):
+        """Start timer system in voice channel without creating any threads"""
+        self.cog.logger.info("Starting timer-only mode (no threads)")
+        
+        try:
+            await interaction.response.defer()
+            self.cog.logger.info("Interaction deferred successfully")
+        except discord.InteractionResponded:
+            self.cog.logger.info("Interaction already responded, continuing")
+            pass
+        except Exception as e:
+            self.cog.logger.error(f"Error deferring interaction: {e}")
+            return
+        
+        # Create a simple timer system without FractalGroup or threads
+        from .speaking_queue import SpeakingQueue, VoiceTimer
+        
+        # Create speaking queue and timer
+        speaking_queue = SpeakingQueue(self.members)
+        voice_timer = VoiceTimer(self.speaking_time)
+        
+        # Store timer info in a simple way (not using FractalGroup)
+        timer_data = {
+            'speaking_queue': speaking_queue,
+            'voice_timer': voice_timer,
+            'voice_channel': self.voice_channel,
+            'facilitator': self.facilitator,
+            'members': self.members,
+            'speaking_time': self.speaking_time
+        }
+        
+        # Store in a simple way for cleanup later
+        self.cog.active_timers = getattr(self.cog, 'active_timers', {})
+        self.cog.active_timers[self.voice_channel.id] = timer_data
+        
+        # Update interaction response
+        try:
+            await interaction.edit_original_response(
+                content=f"⏱️ **Timer started in {self.voice_channel.mention}!**\n"
+                        f"🎙️ Each person gets {self.speaking_time//60} minutes to speak",
+                view=None
+            )
+            self.cog.logger.info("Interaction response updated successfully")
+        except Exception as e:
+            self.cog.logger.error(f"Failed to update interaction response: {e}")
+        
+        # Start first speaker
+        await self._start_next_timer_speaker(timer_data)
+    
+    async def _start_next_timer_speaker(self, timer_data):
+        """Start the next speaker in timer-only mode"""
+        speaking_queue = timer_data['speaking_queue']
+        voice_timer = timer_data['voice_timer']
+        voice_channel = timer_data['voice_channel']
+        
+        next_speaker = speaking_queue.next_speaker()
+        if not next_speaker:
+            # All speakers done
+            await voice_channel.send("🎉 **All speakers have finished!**")
+            # Clean up
+            if hasattr(self.cog, 'active_timers') and voice_channel.id in self.cog.active_timers:
+                del self.cog.active_timers[voice_channel.id]
+            return
+        
+        # Send speaker announcement
+        await voice_channel.send(f"🎙️ **{next_speaker.mention} is now speaking** ({timer_data['speaking_time']//60} minutes)")
+        
+        # Start timer with callbacks
+        async def warning_callback(speaker, seconds):
+            await voice_channel.send(f"⏰ {speaker.mention} - {seconds} seconds remaining!")
+        
+        async def complete_callback(speaker):
+            await self._timer_complete(speaker, timer_data)
+        
+        await voice_timer.start_timer(
+            next_speaker,
+            voice_channel,
+            warning_callback=warning_callback,
+            complete_callback=complete_callback
+        )
+    
+    async def _timer_complete(self, speaker, timer_data):
+        """Called when timer completes in timer-only mode"""
+        voice_channel = timer_data['voice_channel']
+        await voice_channel.send(f"⏱️ Time's up {speaker.mention}!")
+        # Auto-advance to next speaker
+        await self._start_next_timer_speaker(timer_data)
     
     async def _create_fractal_group(self, interaction: discord.Interaction, start_speaking: bool):
         """Create fractal group and optionally start speaking phase"""
