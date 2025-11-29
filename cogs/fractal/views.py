@@ -306,22 +306,43 @@ class ConfirmEndEarlyView(discord.ui.View):
         )
 
 
-class VoiceMemberConfirmationView(MemberConfirmationView):
-    """Extended confirmation view for voice fractals"""
+class VoiceMemberConfirmationView(discord.ui.View):
+    """Extended confirmation view for voice fractals with two button options"""
     
     def __init__(self, cog, members, facilitator, voice_channel, speaking_time):
-        super().__init__(cog, members, facilitator)
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.members = members
+        self.facilitator = facilitator
         self.voice_channel = voice_channel
         self.speaking_time = speaking_time
+        self.awaiting_modification = False
     
-    async def confirm_members(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Start voice-enabled fractal"""
-        self.cog.logger.info(f"VoiceMemberConfirmationView.confirm_members called by {interaction.user.display_name}")
+    @discord.ui.button(label="🗳️ Start Fractal", style=discord.ButtonStyle.success, row=0)
+    async def start_fractal_only(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Start fractal with voting only (no speaking phase)"""
+        self.cog.logger.info(f"Start Fractal (voting only) called by {interaction.user.display_name}")
         
         if interaction.user != self.facilitator:
-            self.cog.logger.warning(f"Non-facilitator {interaction.user.display_name} tried to start fractal")
             await interaction.response.send_message("Only the facilitator can start the fractal.", ephemeral=True)
             return
+        
+        await self._create_fractal_group(interaction, start_speaking=False)
+    
+    @discord.ui.button(label="⏱️ Start Timer", style=discord.ButtonStyle.primary, row=0)
+    async def start_with_timer(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Start fractal with speaking phase and timers"""
+        self.cog.logger.info(f"Start Timer (with speaking) called by {interaction.user.display_name}")
+        
+        if interaction.user != self.facilitator:
+            await interaction.response.send_message("Only the facilitator can start the fractal.", ephemeral=True)
+            return
+        
+        await self._create_fractal_group(interaction, start_speaking=True)
+    
+    async def _create_fractal_group(self, interaction: discord.Interaction, start_speaking: bool):
+        """Create fractal group and optionally start speaking phase"""
+        self.cog.logger.info(f"Creating fractal group, start_speaking={start_speaking}")
         
         # For button interactions, we need to defer differently
         self.cog.logger.info("Attempting to defer interaction")
@@ -428,24 +449,20 @@ class VoiceMemberConfirmationView(MemberConfirmationView):
         except Exception as e:
             self.cog.logger.error(f"Failed to update interaction response: {e}")
         
-        # Send fractal created message with options
-        self.cog.logger.info("Fractal group created, showing options")
+        # Start the appropriate phase based on user choice
+        self.cog.logger.info(f"Starting fractal, speaking phase: {start_speaking}")
         try:
-            # Create the fractal options view
-            options_view = FractalOptionsView(fractal_group)
-            
-            await thread.send(
-                f"# 🎊 **Welcome to {thread.name}!** 🎊\n\n"
-                f"**Facilitator:** {self.facilitator.mention}\n"
-                f"**Members:** {', '.join([m.mention for m in self.members])}\n"
-                f"**Voice Channel:** {self.voice_channel.mention}\n\n"
-                f"**Choose how to proceed:**",
-                view=options_view
-            )
-            self.cog.logger.info("Fractal options displayed successfully")
+            if start_speaking:
+                # Start with speaking phase
+                await fractal_group.start_voice_phase()
+                self.cog.logger.info("Speaking phase started successfully")
+            else:
+                # Start with voting only
+                await fractal_group.start_voting_only()
+                self.cog.logger.info("Voting phase started successfully")
         except Exception as e:
-            self.cog.logger.error(f"Failed to show fractal options: {e}")
-            await thread.send(f"❌ **Error showing options:** {str(e)}")
+            self.cog.logger.error(f"Failed to start fractal phase: {e}")
+            await thread.send(f"❌ **Error starting fractal:** {str(e)}")
 
 
 class FractalOptionsView(discord.ui.View):
