@@ -34,6 +34,50 @@ class FractalGroup:
         
         self.logger.info(f"Created fractal group '{thread.name}' with facilitator {facilitator.display_name} and {len(members)} members")
     
+    async def handle_member_disconnect(self, member: discord.Member):
+        """Handle when a member leaves voice channel during fractal"""
+        if member not in self.members:
+            return  # Not part of this fractal
+        
+        self.logger.info(f"Member {member.display_name} disconnected from voice during fractal")
+        
+        # If it's during voice phase and they're the current speaker
+        if self.voice_phase_active and self.speaking_queue and self.speaking_queue.current_speaker == member:
+            await self.original_channel.send(
+                f"⚠️ **{member.mention} disconnected while speaking**\n"
+                f"🎙️ Moving to next speaker..."
+            )
+            # Move to next speaker
+            await self.start_next_speaker()
+        
+        # Remove their vote if they had one
+        if member.id in self.votes:
+            del self.votes[member.id]
+            await self.thread.send(
+                f"⚠️ **{member.mention} disconnected** - their vote has been removed\n"
+                f"📊 **Progress:** {len(self.votes)}/{len(self.members)} votes cast"
+            )
+        
+        # If they were the facilitator, transfer to first remaining member
+        if member == self.facilitator and len(self.members) > 1:
+            new_facilitator = next((m for m in self.members if m != member), None)
+            if new_facilitator:
+                self.facilitator = new_facilitator
+                await self.thread.send(
+                    f"👑 **Facilitator transferred** to {new_facilitator.mention} due to disconnect"
+                )
+        
+        # Check if we still have enough members to continue
+        remaining_members = [m for m in self.members if m.voice and m.voice.channel == self.voice_channel] if self.voice_channel else self.members
+        if len(remaining_members) < 2:
+            await self.thread.send(
+                f"⚠️ **Not enough members remaining** to continue fractal\n"
+                f"💡 Fractal will be paused. Use admin commands to add members or end the fractal."
+            )
+            # Pause the fractal
+            if hasattr(self, 'paused'):
+                self.paused = True
+    
     async def start_fractal(self):
         """Initialize the fractal group (doesn't automatically start voice or voting)"""
         self.logger.info(f"Fractal group '{self.thread.name}' initialized with {len(self.members)} members")
@@ -169,15 +213,27 @@ class FractalGroup:
     
     async def transition_to_voting(self):
         """Transition from voice phase to voting phase"""
-        # Enhanced transition message with summary
-        completed_speakers = ", ".join([speaker.display_name for speaker in self.speaking_queue.completed_speakers]) if self.speaking_queue else "All participants"
+        # Enhanced transition message with detailed summary
+        if self.speaking_queue:
+            completed_speakers = [speaker.display_name for speaker in self.speaking_queue.completed_speakers]
+            skipped_speakers = [speaker.display_name for speaker in self.speaking_queue.skipped_speakers]
+            
+            speaking_summary = f"**Completed speakers:** {', '.join(completed_speakers) if completed_speakers else 'None'}\n"
+            if skipped_speakers:
+                speaking_summary += f"**Speakers who skipped:** {', '.join(skipped_speakers)}\n"
+            
+            total_speaking_time = len(completed_speakers) * (self.speaking_time // 60)
+            speaking_summary += f"**Total speaking time:** ~{total_speaking_time} minutes\n"
+        else:
+            speaking_summary = "**All participants had the opportunity to speak**\n"
         
         await self.thread.send(
             f"🎙️ **Speaking Phase Complete!**\n"
-            f"**Speakers who participated:** {completed_speakers}\n\n"
+            f"{speaking_summary}\n"
             f"🗳️ **Now transitioning to Fractal Voting...**\n"
             f"📊 **Process:** Vote through levels 6→1 until we have a winner!\n"
-            f"🎯 **Your vote matters** - choose wisely!\n\n"
+            f"🎯 **Remember:** Consider what you heard during the speaking phase\n"
+            f"💡 **Voting tip:** Choose who you think should advance to the next level\n\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         )
         
@@ -190,6 +246,10 @@ class FractalGroup:
         
         # Switch to voting mode
         self.voice_phase_active = False
+        
+        # Add a brief pause before starting voting to let people process
+        await asyncio.sleep(2)
+        
         await self.start_new_round()
     
     def format_voice_status(self) -> str:
@@ -259,16 +319,23 @@ class FractalGroup:
             # Create voting view with buttons
             view = ZAOFractalVotingView(self)
             
-            # Create beautiful voting message like the second image
+            # Create enhanced voting message with speaking phase context
             votes_needed = self.get_vote_threshold()
             candidates_list = ", ".join([c.mention for c in self.active_candidates])
+            
+            # Add speaking phase context if this was a voice fractal
+            speaking_context = ""
+            if self.voice_channel and hasattr(self, 'speaking_queue') and self.speaking_queue:
+                speaking_context = f"💭 **Consider what you heard** during the speaking phase in {self.voice_channel.mention}\n"
             
             voting_message = (
                 f"🗳️ **Voting for Level {self.current_level}**\n\n"
                 f"**Candidates:** {candidates_list}\n"
                 f"**Votes Needed to Win:** {votes_needed} ({votes_needed}/{len(self.members)} members)\n\n"
-                f"Click a button below to vote. Your vote will be announced publicly.\n"
-                f"You can change your vote at any time by clicking a different button."
+                f"{speaking_context}"
+                f"🎯 **Vote for who should advance** to the next level\n"
+                f"📢 **Your vote will be announced publicly**\n"
+                f"🔄 **You can change your vote** by clicking a different button"
             )
             
             message = await self.thread.send(voting_message, view=view)

@@ -328,13 +328,26 @@ class VoiceMemberConfirmationView(discord.ui.View):
     """Extended confirmation view for voice fractals with two button options"""
     
     def __init__(self, cog, members, facilitator, voice_channel, speaking_time):
-        super().__init__(timeout=60)
+        super().__init__(timeout=120)  # Extended timeout for voice fractals
         self.cog = cog
         self.members = members
         self.facilitator = facilitator
         self.voice_channel = voice_channel
         self.speaking_time = speaking_time
         self.awaiting_modification = False
+        self.message = None  # Store message for timeout handling
+    
+    async def on_timeout(self):
+        """Handle view timeout"""
+        try:
+            if self.message:
+                await self.message.edit(
+                    content=f"⏰ **Fractal setup timed out** (2 minutes)\n"
+                           f"💡 Run `/fractaltimer` again to create a new fractal.",
+                    view=None
+                )
+        except discord.HTTPException:
+            pass  # Message might be deleted
     
     @discord.ui.button(label="🗳️ Start Fractal", style=discord.ButtonStyle.success, row=0)
     async def start_fractal_only(self, interaction: discord.Interaction, button: discord.ui.Button):

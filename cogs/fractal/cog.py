@@ -107,15 +107,17 @@ class FractalCog(BaseCog):
         )
         
         try:
-            await interaction.followup.send(setup_message, view=view, ephemeral=True)
+            message = await interaction.followup.send(setup_message, view=view, ephemeral=True)
+            view.message = message  # Store message for timeout handling
         except (discord.NotFound, discord.HTTPException) as e:
             # Fallback to channel message with better error handling
             self.logger.warning(f"Followup failed, using channel message: {e}")
             try:
-                await interaction.channel.send(
+                message = await interaction.channel.send(
                     f"{interaction.user.mention}\n{setup_message}",
                     view=view
                 )
+                view.message = message  # Store message for timeout handling
             except discord.HTTPException as e2:
                 self.logger.error(f"Failed to send setup message: {e2}")
                 # Last resort - send without view
@@ -251,18 +253,48 @@ class FractalCog(BaseCog):
             return
         
         if not self.active_groups:
-            await interaction.followup.send("✅ No active fractal groups.", ephemeral=True)
+            await interaction.followup.send(
+                "✅ **No active fractal groups**\n"
+                "💡 Use `/fractaltimer` to create a new fractal group!",
+                ephemeral=True
+            )
             return
         
-        status = f"**Active Fractal Groups ({len(self.active_groups)}):**\n\n"
+        # Enhanced status with better formatting and more info
+        status = f"# 📊 **Active Fractal Groups ({len(self.active_groups)})**\n\n"
+        
         for thread_id, group in self.active_groups.items():
-            status += f"**{group.thread.name}**\n"
-            status += f"• Thread: {group.thread.mention}\n"
-            status += f"• Facilitator: {group.facilitator.mention}\n"
-            status += f"• Current Level: {group.current_level}\n"
-            status += f"• Members: {len(group.members)}\n"
-            status += f"• Active Candidates: {len(group.active_candidates)}\n"
-            status += f"• Votes Cast: {len(group.votes)}\n\n"
+            # Determine phase and status
+            if hasattr(group, 'voice_phase_active') and group.voice_phase_active:
+                phase = f"🎙️ Speaking Phase"
+                if group.speaking_queue and group.speaking_queue.current_speaker:
+                    phase += f" (Current: {group.speaking_queue.current_speaker.display_name})"
+            else:
+                phase = f"🗳️ Voting Phase (Level {group.current_level})"
+            
+            # Check if paused
+            paused_status = ""
+            if hasattr(group, 'paused') and group.paused:
+                paused_status = " ⏸️ **PAUSED**"
+            
+            # Voice channel info
+            voice_info = ""
+            if hasattr(group, 'voice_channel') and group.voice_channel:
+                voice_info = f"🎙️ **Voice:** {group.voice_channel.mention}\n"
+            
+            status += f"## **{group.thread.name}**{paused_status}\n"
+            status += f"📍 **Thread:** {group.thread.mention}\n"
+            status += f"{voice_info}"
+            status += f"👑 **Facilitator:** {group.facilitator.mention}\n"
+            status += f"📊 **Phase:** {phase}\n"
+            status += f"👥 **Members:** {len(group.members)} total, {len(group.active_candidates)} active candidates\n"
+            status += f"🗳️ **Votes:** {len(group.votes)}/{len(group.members)} cast\n"
+            
+            if group.winners:
+                winners_text = ", ".join([f"L{level}: {winner.display_name}" for level, winner in sorted(group.winners.items(), reverse=True)])
+                status += f"🏆 **Winners:** {winners_text}\n"
+            
+            status += f"🆔 **Thread ID:** `{thread_id}`\n\n"
         
         await interaction.followup.send(status, ephemeral=True)
     
@@ -278,28 +310,64 @@ class FractalCog(BaseCog):
             await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
             return
         
+        if not self.active_groups:
+            await interaction.followup.send(
+                "✅ **No fractal groups to clean up**\n"
+                "All fractal groups are already clean!",
+                ephemeral=True
+            )
+            return
+        
         cleaned_count = 0
         to_remove = []
+        cleanup_details = []
         
         for thread_id, group in self.active_groups.items():
             try:
                 # Check if thread still exists and is accessible
                 thread = self.bot.get_channel(thread_id)
-                if not thread or thread.archived:
+                if not thread:
                     to_remove.append(thread_id)
+                    cleanup_details.append(f"• **{group.thread.name}** - Thread no longer exists")
                     cleaned_count += 1
-            except:
+                elif thread.archived:
+                    to_remove.append(thread_id)
+                    cleanup_details.append(f"• **{group.thread.name}** - Thread archived")
+                    cleaned_count += 1
+                elif not thread.permissions_for(interaction.guild.me).send_messages:
+                    to_remove.append(thread_id)
+                    cleanup_details.append(f"• **{group.thread.name}** - No bot permissions")
+                    cleaned_count += 1
+            except Exception as e:
                 to_remove.append(thread_id)
+                cleanup_details.append(f"• **{getattr(group, 'thread', {}).get('name', 'Unknown')}** - Error: {str(e)[:50]}")
                 cleaned_count += 1
         
         # Remove invalid groups
         for thread_id in to_remove:
-            del self.active_groups[thread_id]
+            try:
+                del self.active_groups[thread_id]
+            except KeyError:
+                pass  # Already removed
         
-        await interaction.followup.send(
-            f"✅ Cleanup complete. Removed {cleaned_count} inactive fractal groups.",
-            ephemeral=True
-        )
+        if cleaned_count == 0:
+            await interaction.followup.send(
+                "✅ **All fractal groups are healthy!**\n"
+                f"Checked {len(self.active_groups)} active groups - no cleanup needed.",
+                ephemeral=True
+            )
+        else:
+            cleanup_summary = "\n".join(cleanup_details[:10])  # Limit to 10 items
+            if len(cleanup_details) > 10:
+                cleanup_summary += f"\n... and {len(cleanup_details) - 10} more"
+            
+            await interaction.followup.send(
+                f"🧹 **Cleanup Complete!**\n"
+                f"**Removed:** {cleaned_count} inactive fractal groups\n"
+                f"**Remaining:** {len(self.active_groups)} active groups\n\n"
+                f"**Cleaned up:**\n{cleanup_summary}",
+                ephemeral=True
+            )
     
     # Force Round Progression Commands
     @app_commands.command(
@@ -312,17 +380,50 @@ class FractalCog(BaseCog):
         await interaction.response.defer(ephemeral=True)
         
         if not interaction.user.guild_permissions.administrator:
-            await interaction.followup.send("❌ You need administrator permissions to use this command.", ephemeral=True)
+            await interaction.followup.send("❌ **Admin permissions required** to use this command.", ephemeral=True)
+            return
+        
+        # Enhanced validation
+        if not thread_id.strip():
+            await interaction.followup.send(
+                "❌ **Thread ID required**\n"
+                "💡 Use `/admin_list_fractals` to see active fractal thread IDs",
+                ephemeral=True
+            )
             return
         
         try:
-            thread_id_int = int(thread_id)
-            if thread_id_int not in self.active_groups:
-                await interaction.followup.send("❌ No active fractal found with that thread ID.", ephemeral=True)
-                return
-            
-            group = self.active_groups[thread_id_int]
-            
+            thread_id_int = int(thread_id.strip())
+        except ValueError:
+            await interaction.followup.send(
+                f"❌ **Invalid thread ID format:** `{thread_id}`\n"
+                "💡 Thread ID must be a number. Use `/admin_list_fractals` to see valid IDs.",
+                ephemeral=True
+            )
+            return
+        
+        if thread_id_int not in self.active_groups:
+            available_ids = ", ".join([f"`{tid}`" for tid in list(self.active_groups.keys())[:5]])
+            await interaction.followup.send(
+                f"❌ **No active fractal found** with thread ID `{thread_id_int}`\n"
+                f"💡 **Available IDs:** {available_ids if available_ids else 'None'}\n"
+                f"Use `/admin_list_fractals` to see all active fractals.",
+                ephemeral=True
+            )
+            return
+        
+        group = self.active_groups[thread_id_int]
+        
+        # Check if fractal is in voting phase
+        if hasattr(group, 'voice_phase_active') and group.voice_phase_active:
+            await interaction.followup.send(
+                f"❌ **Cannot force round during speaking phase**\n"
+                f"💡 Wait for speaking phase to complete or use voice controls to skip to voting.",
+                ephemeral=True
+            )
+            return
+        
+        try:
             # Find candidate with most votes or pick randomly if tie
             vote_counts = {}
             for candidate_id in group.votes.values():
@@ -340,12 +441,21 @@ class FractalCog(BaseCog):
             await group.thread.send(f"⚡ **ADMIN OVERRIDE:** Forcing round completion. Winner: {winner.mention}")
             await group.start_new_round(winner)
             
-            await interaction.followup.send(f"✅ Forced round completion in {group.thread.mention}. Winner: {winner.mention}", ephemeral=True)
+            await interaction.followup.send(
+                f"✅ **Round forced successfully!**\n"
+                f"**Fractal:** {group.thread.mention}\n"
+                f"**Winner:** {winner.mention}\n"
+                f"**Level:** {group.current_level + 1} → {group.current_level}",
+                ephemeral=True
+            )
             
-        except ValueError:
-            await interaction.followup.send("❌ Invalid thread ID format.", ephemeral=True)
         except Exception as e:
-            await interaction.followup.send(f"❌ Error forcing round: {str(e)}", ephemeral=True)
+            self.logger.error(f"Error forcing round: {e}", exc_info=True)
+            await interaction.followup.send(
+                f"❌ **Error forcing round:** {str(e)}\n"
+                f"💡 Check logs for details or try `/admin_list_fractals` to verify fractal status.",
+                ephemeral=True
+            )
     
     @app_commands.command(
         name="admin_reset_votes",
