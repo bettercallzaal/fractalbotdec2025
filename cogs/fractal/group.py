@@ -33,6 +33,191 @@ class FractalGroup:
         self.logger = logging.getLogger('bot')
         
         self.logger.info(f"Created fractal group '{thread.name}' with facilitator {facilitator.display_name} and {len(members)} members")
+        
+        # Error recovery state
+        self.error_count = 0
+        self.last_error_time = None
+        self.recovery_attempts = 0
+    
+    async def handle_error(self, error: Exception, context: str = "Unknown"):
+        """Handle errors with recovery mechanisms"""
+        import time
+        current_time = time.time()
+        
+        self.error_count += 1
+        self.last_error_time = current_time
+        
+        self.logger.error(f"Error in fractal {self.thread.name} ({context}): {error}", exc_info=True)
+        
+        # Check if we're getting too many errors
+        if self.error_count > 5:
+            self.logger.critical(f"Fractal {self.thread.name} has {self.error_count} errors - may need intervention")
+            await self._emergency_notification(f"⚠️ **Fractal experiencing multiple errors** ({self.error_count})\n**Context:** {context}\n**Error:** {str(error)[:100]}")
+        
+        # Attempt recovery based on error type
+        try:
+            if "thread" in str(error).lower() or "channel" in str(error).lower():
+                await self._recover_thread_issues()
+            elif "permission" in str(error).lower():
+                await self._recover_permission_issues()
+            elif "member" in str(error).lower():
+                await self._recover_member_issues()
+            else:
+                await self._generic_recovery()
+        except Exception as recovery_error:
+            self.logger.error(f"Recovery attempt failed: {recovery_error}")
+    
+    async def _emergency_notification(self, message: str):
+        """Send emergency notification to facilitator or fallback channel"""
+        try:
+            # Try to notify facilitator
+            if self.facilitator:
+                try:
+                    await self.facilitator.send(f"🚨 **Fractal Emergency - {self.thread.name}**\n{message}")
+                    return
+                except:
+                    pass
+            
+            # Try to send to thread if accessible
+            if self.thread and not self.thread.archived:
+                try:
+                    await self.thread.send(f"🚨 **System Alert**\n{message}")
+                    return
+                except:
+                    pass
+            
+            # Try original channel
+            if hasattr(self, 'original_channel') and self.original_channel:
+                try:
+                    await self.original_channel.send(f"🚨 **Fractal Alert - {self.thread.name}**\n{message}")
+                    return
+                except:
+                    pass
+                    
+        except Exception as e:
+            self.logger.critical(f"Failed to send emergency notification: {e}")
+    
+    async def _recover_thread_issues(self):
+        """Attempt to recover from thread-related issues"""
+        self.recovery_attempts += 1
+        self.logger.info(f"Attempting thread recovery #{self.recovery_attempts}")
+        
+        try:
+            # Check if thread still exists
+            if not self.thread:
+                raise Exception("Thread object is None")
+            
+            # Try to refresh thread
+            await self.thread.fetch()
+            
+            # Check if archived
+            if self.thread.archived:
+                self.logger.warning(f"Thread {self.thread.name} is archived - cannot recover")
+                await self._emergency_notification("Thread has been archived - fractal cannot continue")
+                return False
+            
+            # Test permissions
+            if not self.thread.permissions_for(self.thread.guild.me).send_messages:
+                await self._emergency_notification("Bot lost permissions to thread - please check permissions")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Thread recovery failed: {e}")
+            return False
+    
+    async def _recover_permission_issues(self):
+        """Attempt to recover from permission issues"""
+        self.logger.info("Attempting permission recovery")
+        
+        try:
+            # Check thread permissions
+            if self.thread:
+                perms = self.thread.permissions_for(self.thread.guild.me)
+                missing_perms = []
+                
+                if not perms.send_messages:
+                    missing_perms.append("Send Messages")
+                if not perms.embed_links:
+                    missing_perms.append("Embed Links")
+                if not perms.add_reactions:
+                    missing_perms.append("Add Reactions")
+                
+                if missing_perms:
+                    await self._emergency_notification(f"Missing permissions: {', '.join(missing_perms)}")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Permission recovery failed: {e}")
+            return False
+    
+    async def _recover_member_issues(self):
+        """Attempt to recover from member-related issues"""
+        self.logger.info("Attempting member recovery")
+        
+        try:
+            # Check if members are still valid
+            valid_members = []
+            invalid_members = []
+            
+            for member in self.members:
+                try:
+                    # Try to access member properties
+                    _ = member.display_name
+                    _ = member.guild
+                    valid_members.append(member)
+                except:
+                    invalid_members.append(member)
+            
+            if invalid_members:
+                self.logger.warning(f"Found {len(invalid_members)} invalid members")
+                # Remove invalid members
+                for invalid_member in invalid_members:
+                    if invalid_member in self.members:
+                        self.members.remove(invalid_member)
+                    if invalid_member in self.active_candidates:
+                        self.active_candidates.remove(invalid_member)
+                    # Remove their votes
+                    self.votes = {k: v for k, v in self.votes.items() if k != invalid_member.id}
+                
+                await self._emergency_notification(f"Removed {len(invalid_members)} invalid members from fractal")
+            
+            # Check if we still have enough members
+            if len(valid_members) < 2:
+                await self._emergency_notification("Not enough valid members remaining - fractal may need to end")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Member recovery failed: {e}")
+            return False
+    
+    async def _generic_recovery(self):
+        """Generic recovery attempt"""
+        self.logger.info("Attempting generic recovery")
+        
+        try:
+            # Basic health check
+            if not self.thread:
+                return False
+            
+            # Try a simple operation
+            await self.thread.fetch()
+            
+            # Reset error count if we've recovered
+            if self.recovery_attempts > 0:
+                self.error_count = max(0, self.error_count - 1)
+                self.logger.info("Generic recovery successful - reduced error count")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Generic recovery failed: {e}")
+            return False
     
     async def handle_member_disconnect(self, member: discord.Member):
         """Handle when a member leaves voice channel during fractal"""
@@ -351,49 +536,62 @@ class FractalGroup:
 
     async def process_vote(self, voter: discord.Member, candidate: discord.Member):
         """Process a vote and announce it publicly"""
-        previous_vote = self.votes.get(voter.id)
-        previous_candidate = None
-        changed_vote = False
-        
-        if previous_vote:
-            previous_candidate = discord.utils.get(self.active_candidates + [m for m in self.members if m.id in [w.id for w in self.winners.values()]], id=previous_vote)
-            changed_vote = True
-        
-        # Update vote
-        self.votes[voter.id] = candidate.id
-        
-        # Notify web app of vote (don't let this break the fractal)
         try:
-            await web_integration.notify_vote_cast(self, voter, candidate)
+            self.logger.debug(f"Processing vote: {voter.display_name} → {candidate.display_name}")
+            previous_vote = self.votes.get(voter.id)
+            previous_candidate = None
+            changed_vote = False
+            
+            if previous_vote:
+                previous_candidate = discord.utils.get(self.active_candidates + [m for m in self.members if m.id in [w.id for w in self.winners.values()]], id=previous_vote)
+                changed_vote = True
+            
+            # Update vote
+            self.votes[voter.id] = candidate.id
+            
+            # Notify web app of vote (don't let this break the fractal)
+            try:
+                await web_integration.notify_vote_cast(self, voter, candidate)
+            except Exception as e:
+                self.logger.warning(f"Web integration vote notification failed: {e}")
+            
+            # Enhanced public announcement with vote progress
+            votes_cast = len(self.votes)
+            total_members = len(self.members)
+            votes_needed = self.get_vote_threshold()
+            
+            if previous_candidate:
+                await self.thread.send(
+                    f"🔄 **Vote Changed:** {voter.mention} changed vote from {previous_candidate.mention} to {candidate.mention}\n"
+                    f"📊 **Progress:** {votes_cast}/{total_members} votes cast • {votes_needed} needed to win"
+                )
+            else:
+                await self.thread.send(
+                    f"✅ **New Vote:** {voter.mention} voted for {candidate.mention}\n"
+                    f"📊 **Progress:** {votes_cast}/{total_members} votes cast • {votes_needed} needed to win"
+                )
+            
+            # Check if this vote caused a winner
+            await self.check_for_winner()
+            
+            # Return information about the vote for enhanced feedback
+            return {
+                'changed_vote': changed_vote,
+                'votes_cast': votes_cast,
+                'total_members': total_members,
+                'votes_needed': votes_needed
+            }
+            
         except Exception as e:
-            self.logger.warning(f"Web integration vote notification failed: {e}")
-        
-        # Enhanced public announcement with vote progress
-        votes_cast = len(self.votes)
-        total_members = len(self.members)
-        votes_needed = self.get_vote_threshold()
-        
-        if previous_candidate:
-            await self.thread.send(
-                f"🔄 **Vote Changed:** {voter.mention} changed vote from {previous_candidate.mention} to {candidate.mention}\n"
-                f"📊 **Progress:** {votes_cast}/{total_members} votes cast • {votes_needed} needed to win"
-            )
-        else:
-            await self.thread.send(
-                f"✅ **New Vote:** {voter.mention} voted for {candidate.mention}\n"
-                f"📊 **Progress:** {votes_cast}/{total_members} votes cast • {votes_needed} needed to win"
-            )
-        
-        # Check if this vote caused a winner
-        await self.check_for_winner()
-        
-        # Return information about the vote for enhanced feedback
-        return {
-            'changed_vote': changed_vote,
-            'votes_cast': votes_cast,
-            'total_members': total_members,
-            'votes_needed': votes_needed
-        }
+            self.logger.error(f"Error processing vote: {e}", exc_info=True)
+            await self.handle_error(e, "process_vote")
+            # Return basic info even on error
+            return {
+                'changed_vote': False,
+                'votes_cast': len(self.votes),
+                'total_members': len(self.members),
+                'votes_needed': self.get_vote_threshold()
+            }
 
     async def check_for_winner(self):
         """Check if any candidate has reached the vote threshold"""

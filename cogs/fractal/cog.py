@@ -952,3 +952,297 @@ class FractalCog(BaseCog):
             await interaction.followup.send("❌ Invalid thread ID format.", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"❌ Error exporting data: {str(e)}", ephemeral=True)
+    
+    # Debug and Health Check Commands
+    @app_commands.command(
+        name="admin_debug_fractal",
+        description="[ADMIN] Detailed debug information for a specific fractal"
+    )
+    @app_commands.describe(thread_id="ID of the fractal thread to debug")
+    async def admin_debug_fractal(self, interaction: discord.Interaction, thread_id: str):
+        """Admin command to get detailed debug info for a fractal"""
+        await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ **Admin permissions required** to use this command.", ephemeral=True)
+            return
+        
+        # Validate thread ID
+        try:
+            thread_id_int = int(thread_id.strip())
+        except ValueError:
+            await interaction.followup.send(
+                f"❌ **Invalid thread ID format:** `{thread_id}`\n"
+                "💡 Thread ID must be a number.",
+                ephemeral=True
+            )
+            return
+        
+        if thread_id_int not in self.active_groups:
+            await interaction.followup.send(
+                f"❌ **No active fractal found** with thread ID `{thread_id_int}`\n"
+                f"💡 Use `/admin_list_fractals` to see active fractals.",
+                ephemeral=True
+            )
+            return
+        
+        group = self.active_groups[thread_id_int]
+        
+        # Comprehensive debug information
+        debug_info = f"# 🔍 **Debug Info: {group.thread.name}**\n\n"
+        
+        # Basic Info
+        debug_info += f"## 📊 **Basic Information**\n"
+        debug_info += f"**Thread ID:** `{thread_id_int}`\n"
+        debug_info += f"**Thread Name:** {group.thread.name}\n"
+        debug_info += f"**Thread Mention:** {group.thread.mention}\n"
+        debug_info += f"**Facilitator:** {group.facilitator.mention} (`{group.facilitator.id}`)\n"
+        debug_info += f"**Current Level:** {group.current_level}\n"
+        debug_info += f"**Created:** <t:{int(group.thread.created_at.timestamp())}:R>\n\n"
+        
+        # Members Info
+        debug_info += f"## 👥 **Members ({len(group.members)})**\n"
+        for i, member in enumerate(group.members, 1):
+            voice_status = "🎙️ In Voice" if member.voice and member.voice.channel else "❌ Not in Voice"
+            debug_info += f"{i}. {member.mention} (`{member.id}`) - {voice_status}\n"
+        debug_info += "\n"
+        
+        # Active Candidates
+        debug_info += f"## 🎯 **Active Candidates ({len(group.active_candidates)})**\n"
+        for i, candidate in enumerate(group.active_candidates, 1):
+            debug_info += f"{i}. {candidate.mention} (`{candidate.id}`)\n"
+        debug_info += "\n"
+        
+        # Voting Info
+        debug_info += f"## 🗳️ **Voting Status**\n"
+        debug_info += f"**Votes Cast:** {len(group.votes)}/{len(group.members)}\n"
+        debug_info += f"**Votes Needed:** {group.get_vote_threshold()}\n"
+        if group.votes:
+            debug_info += f"**Vote Details:**\n"
+            for voter_id, candidate_id in group.votes.items():
+                voter = discord.utils.get(group.members, id=voter_id)
+                candidate = discord.utils.get(group.active_candidates, id=candidate_id)
+                voter_name = voter.display_name if voter else f"Unknown ({voter_id})"
+                candidate_name = candidate.display_name if candidate else f"Unknown ({candidate_id})"
+                debug_info += f"  • {voter_name} → {candidate_name}\n"
+        debug_info += "\n"
+        
+        # Voice Phase Info
+        if hasattr(group, 'voice_channel') and group.voice_channel:
+            debug_info += f"## 🎙️ **Voice Phase Information**\n"
+            debug_info += f"**Voice Channel:** {group.voice_channel.mention} (`{group.voice_channel.id}`)\n"
+            debug_info += f"**Speaking Time:** {group.speaking_time // 60} minutes\n"
+            debug_info += f"**Voice Phase Active:** {'✅ Yes' if getattr(group, 'voice_phase_active', False) else '❌ No'}\n"
+            
+            if hasattr(group, 'speaking_queue') and group.speaking_queue:
+                debug_info += f"**Current Speaker:** {group.speaking_queue.current_speaker.display_name if group.speaking_queue.current_speaker else 'None'}\n"
+                debug_info += f"**Completed Speakers:** {len(group.speaking_queue.completed_speakers)}\n"
+                debug_info += f"**Remaining Speakers:** {len(group.speaking_queue.queue)}\n"
+            debug_info += "\n"
+        
+        # Winners Info
+        if group.winners:
+            debug_info += f"## 🏆 **Winners by Level**\n"
+            for level in sorted(group.winners.keys(), reverse=True):
+                winner = group.winners[level]
+                debug_info += f"**Level {level}:** {winner.mention} (`{winner.id}`)\n"
+            debug_info += "\n"
+        
+        # System Status
+        debug_info += f"## ⚙️ **System Status**\n"
+        debug_info += f"**Thread Accessible:** {'✅ Yes' if group.thread else '❌ No'}\n"
+        debug_info += f"**Thread Archived:** {'❌ Yes' if group.thread and group.thread.archived else '✅ No'}\n"
+        debug_info += f"**Bot Permissions:** {'✅ Good' if group.thread.permissions_for(interaction.guild.me).send_messages else '❌ Missing'}\n"
+        debug_info += f"**Paused:** {'⏸️ Yes' if getattr(group, 'paused', False) else '✅ Active'}\n"
+        
+        # Memory usage info
+        import sys
+        debug_info += f"**Memory Usage:** ~{sys.getsizeof(group)} bytes\n"
+        
+        await interaction.followup.send(debug_info, ephemeral=True)
+    
+    @app_commands.command(
+        name="admin_health_check",
+        description="[ADMIN] System health check and diagnostics"
+    )
+    async def admin_health_check(self, interaction: discord.Interaction):
+        """Admin command to check system health"""
+        await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ **Admin permissions required** to use this command.", ephemeral=True)
+            return
+        
+        health_report = f"# 🏥 **System Health Check**\n\n"
+        
+        # Bot Status
+        health_report += f"## 🤖 **Bot Status**\n"
+        health_report += f"**Bot Online:** ✅ Yes\n"
+        health_report += f"**Latency:** {round(self.bot.latency * 1000)}ms\n"
+        health_report += f"**Guilds:** {len(self.bot.guilds)}\n"
+        health_report += f"**Active Fractals:** {len(self.active_groups)}\n\n"
+        
+        # Memory and Performance
+        import psutil
+        import os
+        process = psutil.Process(os.getpid())
+        memory_mb = process.memory_info().rss / 1024 / 1024
+        
+        health_report += f"## 📊 **Performance Metrics**\n"
+        health_report += f"**Memory Usage:** {memory_mb:.1f} MB\n"
+        health_report += f"**CPU Usage:** {process.cpu_percent():.1f}%\n"
+        health_report += f"**Threads:** {process.num_threads()}\n\n"
+        
+        # Fractal Health
+        healthy_fractals = 0
+        problematic_fractals = []
+        
+        for thread_id, group in self.active_groups.items():
+            try:
+                # Check thread accessibility
+                if not group.thread or group.thread.archived:
+                    problematic_fractals.append(f"Thread {thread_id}: Archived/Deleted")
+                    continue
+                
+                # Check permissions
+                if not group.thread.permissions_for(interaction.guild.me).send_messages:
+                    problematic_fractals.append(f"Thread {thread_id}: No permissions")
+                    continue
+                
+                # Check member validity
+                invalid_members = [m for m in group.members if not m.guild or m.guild != interaction.guild]
+                if invalid_members:
+                    problematic_fractals.append(f"Thread {thread_id}: {len(invalid_members)} invalid members")
+                    continue
+                
+                healthy_fractals += 1
+                
+            except Exception as e:
+                problematic_fractals.append(f"Thread {thread_id}: Error - {str(e)[:50]}")
+        
+        health_report += f"## 🎯 **Fractal Health**\n"
+        health_report += f"**Healthy Fractals:** {healthy_fractals}/{len(self.active_groups)}\n"
+        
+        if problematic_fractals:
+            health_report += f"**Issues Found:**\n"
+            for issue in problematic_fractals[:10]:  # Limit to 10 issues
+                health_report += f"  • {issue}\n"
+            if len(problematic_fractals) > 10:
+                health_report += f"  • ... and {len(problematic_fractals) - 10} more\n"
+            health_report += f"\n💡 **Recommendation:** Run `/admin_cleanup` to fix issues\n"
+        else:
+            health_report += f"**Status:** ✅ All fractals healthy!\n"
+        
+        health_report += f"\n## 🔧 **Quick Actions**\n"
+        health_report += f"• `/admin_cleanup` - Clean up problematic fractals\n"
+        health_report += f"• `/admin_list_fractals` - View all active fractals\n"
+        health_report += f"• `/admin_debug_fractal` - Debug specific fractal\n"
+        
+        await interaction.followup.send(health_report, ephemeral=True)
+    
+    @app_commands.command(
+        name="admin_debug_mode",
+        description="[ADMIN] Toggle debug mode for verbose logging"
+    )
+    @app_commands.describe(enabled="Enable or disable debug mode")
+    async def admin_debug_mode(self, interaction: discord.Interaction, enabled: bool):
+        """Admin command to toggle debug mode"""
+        await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ **Admin permissions required** to use this command.", ephemeral=True)
+            return
+        
+        # Toggle debug logging level
+        import logging
+        logger = logging.getLogger('bot')
+        
+        if enabled:
+            logger.setLevel(logging.DEBUG)
+            # Also set debug for fractal-specific loggers
+            for handler in logger.handlers:
+                handler.setLevel(logging.DEBUG)
+            
+            await interaction.followup.send(
+                "🔍 **Debug Mode Enabled**\n"
+                "• Verbose logging is now active\n"
+                "• All fractal operations will be logged in detail\n"
+                "• Use `/admin_debug_mode enabled:False` to disable",
+                ephemeral=True
+            )
+        else:
+            logger.setLevel(logging.INFO)
+            for handler in logger.handlers:
+                handler.setLevel(logging.INFO)
+            
+            await interaction.followup.send(
+                "✅ **Debug Mode Disabled**\n"
+                "• Logging returned to normal level\n"
+                "• Only important events will be logged",
+                ephemeral=True
+            )
+        
+        self.logger.info(f"Debug mode {'enabled' if enabled else 'disabled'} by {interaction.user.display_name}")
+    
+    @app_commands.command(
+        name="admin_emergency_stop",
+        description="[ADMIN] Emergency stop all fractals and clear system"
+    )
+    async def admin_emergency_stop(self, interaction: discord.Interaction):
+        """Emergency command to stop all fractals"""
+        await interaction.response.defer(ephemeral=True)
+        
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.followup.send("❌ **Admin permissions required** to use this command.", ephemeral=True)
+            return
+        
+        # Confirmation check
+        if not hasattr(self, '_emergency_confirmed'):
+            self._emergency_confirmed = False
+        
+        if not self._emergency_confirmed:
+            self._emergency_confirmed = True
+            await interaction.followup.send(
+                "⚠️ **EMERGENCY STOP CONFIRMATION**\n"
+                "This will immediately stop ALL active fractals and clear the system.\n"
+                "**This action cannot be undone!**\n\n"
+                "Run this command again within 30 seconds to confirm.",
+                ephemeral=True
+            )
+            
+            # Reset confirmation after 30 seconds
+            import asyncio
+            await asyncio.sleep(30)
+            self._emergency_confirmed = False
+            return
+        
+        # Execute emergency stop
+        stopped_count = len(self.active_groups)
+        
+        # Notify all active fractals
+        for thread_id, group in list(self.active_groups.items()):
+            try:
+                await group.thread.send(
+                    "🚨 **EMERGENCY STOP**\n"
+                    "This fractal has been stopped by an administrator.\n"
+                    "Contact server staff if you have questions."
+                )
+            except:
+                pass  # Thread might be inaccessible
+        
+        # Clear all active groups
+        self.active_groups.clear()
+        
+        # Reset confirmation
+        self._emergency_confirmed = False
+        
+        self.logger.critical(f"EMERGENCY STOP executed by {interaction.user.display_name} - stopped {stopped_count} fractals")
+        
+        await interaction.followup.send(
+            f"🚨 **EMERGENCY STOP COMPLETE**\n"
+            f"**Stopped:** {stopped_count} active fractals\n"
+            f"**System Status:** Clean\n"
+            f"**Action logged:** Yes\n\n"
+            f"All fractals have been terminated and the system has been reset.",
+            ephemeral=True
+        )

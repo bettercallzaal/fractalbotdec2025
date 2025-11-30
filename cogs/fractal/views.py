@@ -51,6 +51,11 @@ class ZAOFractalVotingView(discord.ui.View):
             # Always defer response immediately to avoid timeout
             await interaction.response.defer(ephemeral=True)
             
+            # Enhanced debug logging
+            import logging
+            logger = logging.getLogger('bot')
+            logger.debug(f"Vote button clicked: {interaction.user.display_name} → {candidate.display_name} (Level {self.fractal_group.current_level})")
+            
             try:
                 # Process the vote (public announcement happens in process_vote)
                 result = await self.fractal_group.process_vote(interaction.user, candidate)
