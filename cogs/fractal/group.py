@@ -48,10 +48,16 @@ class FractalGroup:
         """Start voting without voice phase"""
         self.logger.info(f"Starting voting-only fractal for '{self.thread.name}'")
         
-        # Send welcome message for voting-only fractal
+        # Enhanced welcome message for voting-only fractal
         welcome_msg = (
-            f"🗳️ **Starting fractal voting process...**\n"
-            f"We'll vote through levels 6→1 until we have a winner!\n\n"
+            f"# 🗳️ **Welcome to {self.thread.name}!** 🗳️\n\n"
+            f"**Facilitator:** {self.facilitator.mention}\n"
+            f"**Members ({len(self.members)}):** {', '.join([m.mention for m in self.members])}\n\n"
+            f"🎯 **Fractal Voting Process Starting**\n"
+            f"📊 **How it works:** Vote through levels 6→1 until we have a winner\n"
+            f"🏆 **Goal:** Democratic consensus through progressive elimination\n"
+            f"⚡ **Each round:** Vote for who should advance to the next level\n\n"
+            f"**Let's begin with Level 6 voting!**"
         )
         await self.thread.send(welcome_msg)
         
@@ -60,13 +66,18 @@ class FractalGroup:
     
     async def start_voice_phase(self):
         """Start the voice speaking phase"""
+        # Enhanced welcome message with clearer instructions
         welcome_msg = (
             f"# 🎊 **Welcome to {self.thread.name}!** 🎊\n\n"
             f"**Facilitator:** {self.facilitator.mention}\n"
-            f"**Members:** {', '.join([m.mention for m in self.members])}\n\n"
-            f"🎙️ **Starting Voice Speaking Phase in {self.voice_channel.mention}**\n"
-            f"⏱️ Each person gets {self.speaking_time//60} minutes to speak\n"
-            f"🎯 After everyone speaks, we'll vote here in this thread!\n\n"
+            f"**Members ({len(self.members)}):** {', '.join([m.mention for m in self.members])}\n\n"
+            f"🎙️ **Voice Speaking Phase Starting in {self.voice_channel.mention}**\n"
+            f"⏱️ **Speaking Time:** {self.speaking_time//60} minutes per person\n"
+            f"🎛️ **Timer Controls:** Available in {self.voice_channel.mention} text chat\n"
+            f"📋 **Speaking Order:** Will be announced as we go\n\n"
+            f"🗳️ **After Speaking:** We'll return here for fractal voting (6→1 elimination)\n"
+            f"🎯 **Goal:** Democratic consensus through structured discussion + voting\n\n"
+            f"**Ready to begin! First speaker will be announced shortly...**"
         )
         await self.thread.send(welcome_msg)
         
@@ -158,9 +169,15 @@ class FractalGroup:
     
     async def transition_to_voting(self):
         """Transition from voice phase to voting phase"""
+        # Enhanced transition message with summary
+        completed_speakers = ", ".join([speaker.display_name for speaker in self.speaking_queue.completed_speakers]) if self.speaking_queue else "All participants"
+        
         await self.thread.send(
-            f"🗣️ **Speaking phase complete!**\n"
-            f"🗳️ **Now starting voting phase...**\n"
+            f"🎙️ **Speaking Phase Complete!**\n"
+            f"**Speakers who participated:** {completed_speakers}\n\n"
+            f"🗳️ **Now transitioning to Fractal Voting...**\n"
+            f"📊 **Process:** Vote through levels 6→1 until we have a winner!\n"
+            f"🎯 **Your vote matters** - choose wisely!\n\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         )
         
@@ -269,28 +286,47 @@ class FractalGroup:
         """Process a vote and announce it publicly"""
         previous_vote = self.votes.get(voter.id)
         previous_candidate = None
+        changed_vote = False
         
         if previous_vote:
             previous_candidate = discord.utils.get(self.active_candidates + [m for m in self.members if m.id in [w.id for w in self.winners.values()]], id=previous_vote)
+            changed_vote = True
         
         # Update vote
         self.votes[voter.id] = candidate.id
         
-        # Notify web app of vote
-        await web_integration.notify_vote_cast(self, voter, candidate)
+        # Notify web app of vote (don't let this break the fractal)
+        try:
+            await web_integration.notify_vote_cast(self, voter, candidate)
+        except Exception as e:
+            self.logger.warning(f"Web integration vote notification failed: {e}")
         
-        # Announce vote publicly with green checkmarks like the second image
+        # Enhanced public announcement with vote progress
+        votes_cast = len(self.votes)
+        total_members = len(self.members)
+        votes_needed = self.get_vote_threshold()
+        
         if previous_candidate:
             await self.thread.send(
-                f"🔄 **Vote Changed:** {voter.mention} changed vote from {previous_candidate.mention} to {candidate.mention}"
+                f"🔄 **Vote Changed:** {voter.mention} changed vote from {previous_candidate.mention} to {candidate.mention}\n"
+                f"📊 **Progress:** {votes_cast}/{total_members} votes cast • {votes_needed} needed to win"
             )
         else:
             await self.thread.send(
-                f"✅ **New Vote:** {voter.mention} voted for {candidate.mention}"
+                f"✅ **New Vote:** {voter.mention} voted for {candidate.mention}\n"
+                f"📊 **Progress:** {votes_cast}/{total_members} votes cast • {votes_needed} needed to win"
             )
         
         # Check if this vote caused a winner
         await self.check_for_winner()
+        
+        # Return information about the vote for enhanced feedback
+        return {
+            'changed_vote': changed_vote,
+            'votes_cast': votes_cast,
+            'total_members': total_members,
+            'votes_needed': votes_needed
+        }
 
     async def check_for_winner(self):
         """Check if any candidate has reached the vote threshold"""

@@ -71,9 +71,13 @@ class FractalCog(BaseCog):
         if not voice_check['success']:
             try:
                 await interaction.followup.send(voice_check['message'], ephemeral=True)
-            except:
+            except (discord.NotFound, discord.HTTPException) as e:
                 # If followup fails, try regular channel message
-                await interaction.channel.send(f"{interaction.user.mention} {voice_check['message']}")
+                self.logger.warning(f"Followup failed, using channel message: {e}")
+                try:
+                    await interaction.channel.send(f"{interaction.user.mention} {voice_check['message']}")
+                except discord.HTTPException as e2:
+                    self.logger.error(f"Failed to send voice check error message: {e2}")
             return
         
         members = voice_check['members']
@@ -89,27 +93,38 @@ class FractalCog(BaseCog):
         )
         
         member_list = "\n".join([f"• {member.display_name}" for member in members])
+        
+        # Enhanced setup message with better formatting
+        setup_message = (
+            f"🎙️ **ZAO Fractal Setup**\n"
+            f"**Voice Channel:** {voice_channel.mention}\n"
+            f"**Speaking Time:** {speaking_time} minutes each\n"
+            f"**Members ({len(members)}):**\n{member_list}\n\n"
+            f"**Choose your fractal type:**\n"
+            f"• 🗳️ **Start Fractal** - Voting only (no speaking)\n"
+            f"• ⏱️ **Start Timer Only** - Speaking rounds only (no voting)\n"
+            f"• ⏱️ **Start Timer + Voting** - Full fractal with speaking then voting"
+        )
+        
         try:
-            await interaction.followup.send(
-                f"🎙️ **ZAO Fractal Setup**\n"
-                f"**Voice Channel:** {voice_channel.mention}\n"
-                f"**Speaking Time:** {speaking_time} minutes each\n"
-                f"**Members ({len(members)}):**\n{member_list}\n\n"
-                f"**Process:** Speaking rounds → Voting → Results",
-                view=view,
-                ephemeral=True
-            )
-        except:
-            # Fallback to channel message
-            await interaction.channel.send(
-                f"{interaction.user.mention}\n"
-                f"🎙️ **ZAO Fractal Setup**\n"
-                f"**Voice Channel:** {voice_channel.mention}\n"
-                f"**Speaking Time:** {speaking_time} minutes each\n"
-                f"**Members ({len(members)}):**\n{member_list}\n\n"
-                f"**Process:** Speaking rounds → Voting → Results",
-                view=view
-            )
+            await interaction.followup.send(setup_message, view=view, ephemeral=True)
+        except (discord.NotFound, discord.HTTPException) as e:
+            # Fallback to channel message with better error handling
+            self.logger.warning(f"Followup failed, using channel message: {e}")
+            try:
+                await interaction.channel.send(
+                    f"{interaction.user.mention}\n{setup_message}",
+                    view=view
+                )
+            except discord.HTTPException as e2:
+                self.logger.error(f"Failed to send setup message: {e2}")
+                # Last resort - send without view
+                try:
+                    await interaction.channel.send(
+                        f"{interaction.user.mention}\n❌ **Error setting up fractal.** Please try again."
+                    )
+                except discord.HTTPException as e3:
+                    self.logger.critical(f"Complete failure to send any message: {e3}")
     
     @app_commands.command(
         name="endgroup",

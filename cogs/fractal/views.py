@@ -53,20 +53,32 @@ class ZAOFractalVotingView(discord.ui.View):
             
             try:
                 # Process the vote (public announcement happens in process_vote)
-                await self.fractal_group.process_vote(interaction.user, candidate)
+                result = await self.fractal_group.process_vote(interaction.user, candidate)
                 
-                # Confirm to the voter (private)
-                await interaction.followup.send(
-                    f"You voted for {candidate.display_name}",
-                    ephemeral=True
-                )
+                # Enhanced confirmation to the voter (private)
+                if result.get('changed_vote'):
+                    await interaction.followup.send(
+                        f"✅ **Vote changed!** You now vote for **{candidate.display_name}**\n"
+                        f"🗳️ Level {self.fractal_group.current_level} • {len(self.fractal_group.votes)}/{len(self.fractal_group.members)} votes cast",
+                        ephemeral=True
+                    )
+                else:
+                    await interaction.followup.send(
+                        f"✅ **Vote recorded!** You voted for **{candidate.display_name}**\n"
+                        f"🗳️ Level {self.fractal_group.current_level} • {len(self.fractal_group.votes)}/{len(self.fractal_group.members)} votes cast",
+                        ephemeral=True
+                    )
                 
             except Exception as e:
                 self.logger.error(f"Error processing vote: {e}", exc_info=True)
-                await interaction.followup.send(
-                    "❌ Error recording your vote. Please try again.",
-                    ephemeral=True
-                )
+                try:
+                    await interaction.followup.send(
+                        f"❌ **Error recording your vote for {candidate.display_name}**\n"
+                        f"Please try clicking the button again. If the problem persists, contact the facilitator.",
+                        ephemeral=True
+                    )
+                except discord.HTTPException as e2:
+                    self.logger.error(f"Failed to send error message: {e2}")
                 
         return vote_callback
 
