@@ -127,6 +127,83 @@ class FractalCog(BaseCog):
                     )
                 except discord.HTTPException as e3:
                     self.logger.critical(f"Complete failure to send any message: {e3}")
+
+
+    @app_commands.command(
+        name="zaofractal",
+        description="Create a voting-only fractal (no voice timer)"
+    )
+    @app_commands.describe(
+        member1="Member 1 (required)",
+        member2="Member 2 (required)",
+        member3="Member 3 (optional)",
+        member4="Member 4 (optional)",
+        member5="Member 5 (optional)",
+        member6="Member 6 (optional)"
+    )
+    async def zaofractal(
+        self,
+        interaction: discord.Interaction,
+        member1: discord.Member,
+        member2: discord.Member,
+        member3: discord.Member | None = None,
+        member4: discord.Member | None = None,
+        member5: discord.Member | None = None,
+        member6: discord.Member | None = None,
+    ):
+        if interaction.response.is_done():
+            return
+
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except (discord.NotFound, discord.InteractionResponded):
+            pass
+
+        members = [m for m in [member1, member2, member3, member4, member5, member6] if m is not None]
+        members = [m for m in members if not m.bot]
+
+        unique_members: list[discord.Member] = []
+        seen_ids: set[int] = set()
+        for m in members:
+            if m.id not in seen_ids:
+                unique_members.append(m)
+                seen_ids.add(m.id)
+        members = unique_members
+
+        if interaction.user not in members:
+            members.insert(0, interaction.user)
+
+        if len(members) < 2:
+            await interaction.followup.send("❌ Need at least 2 human members.", ephemeral=True)
+            return
+
+        if len(members) > 6:
+            await interaction.followup.send("❌ Fractal groups are limited to 6 members.", ephemeral=True)
+            return
+
+        view = MemberConfirmationView(
+            cog=self,
+            members=members,
+            facilitator=interaction.user
+        )
+
+        member_list = "\n".join([f"- {m.display_name}" for m in members])
+        setup_message = (
+            "🗳️ **ZAO Fractal (Voting Only) Setup**\n"
+            f"**Facilitator:** {interaction.user.mention}\n"
+            f"**Members ({len(members)}):**\n{member_list}\n\n"
+            "Press **✅ Start Fractal** to create the voting thread + buttons."
+        )
+
+        try:
+            await interaction.followup.send(setup_message, view=view, ephemeral=True)
+        except (discord.NotFound, discord.HTTPException) as e:
+            self.logger.warning(f"Voting-only setup followup failed, using channel message: {e}")
+            try:
+                await interaction.channel.send(f"{interaction.user.mention}\n{setup_message}", view=view)
+            except discord.HTTPException as e2:
+                self.logger.error(f"Failed to send voting-only setup message: {e2}")
+                return
     
     @app_commands.command(
         name="endgroup",

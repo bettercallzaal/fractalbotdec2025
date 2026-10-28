@@ -139,11 +139,26 @@ class MemberConfirmationView(discord.ui.View):
             channel = interaction.guild.system_channel or interaction.guild.text_channels[0]
         
         # Create public thread
-        thread = await channel.create_thread(
-            name=group_name,
-            type=discord.ChannelType.public_thread,
-            reason="ZAO Fractal Group"
-        )
+        try:
+            thread = await channel.create_thread(
+                name=group_name,
+                type=discord.ChannelType.public_thread,
+                reason="ZAO Fractal Group"
+            )
+        except (discord.Forbidden, discord.HTTPException) as e:
+            self.cog.logger.error(f"Failed to create thread for voting-only fractal: {e}")
+            try:
+                await interaction.edit_original_response(
+                    content=(
+                        "❌ **Failed to create fractal thread.**\n"
+                        "This usually means the bot is missing permissions like **Create Public Threads** or **Send Messages** in this channel.\n"
+                        f"**Error:** {str(e)[:150]}"
+                    ),
+                    view=None
+                )
+            except (discord.NotFound, discord.HTTPException):
+                pass
+            return
         
         # Add all members to thread
         for member in self.members:
@@ -180,7 +195,11 @@ class MemberConfirmationView(discord.ui.View):
         
         # Start the fractal (this might take a moment)
         try:
+            # Keep web integration / initialization behavior
             await fractal_group.start_fractal()
+
+            # IMPORTANT: voting-only fractals must actually start voting UI
+            await fractal_group.start_voting_only()
         except Exception as e:
             # If fractal start fails, send error to thread
             await thread.send(f"❌ Error starting fractal: {str(e)}")
